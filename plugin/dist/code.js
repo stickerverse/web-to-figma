@@ -1,76 +1,403 @@
 "use strict";
-/**
- * FINAL WEB-TO-FIGMA PLUGIN - ALL PHASES (1-6)
- *
- * Features:
- * - Phase 1: Extended CSS application, comprehensive property mapping
- * - Phase 2: Font extraction, mapping, and loading
- * - Phase 3: Hybrid rendering with screenshots
- * - Phase 4: SVG handling and conversion
- * - Phase 5: Advanced effects (gradients, shadows, filters, transforms)
- * - Phase 6: Pseudo-elements, interaction states, optimization
- *
- * Target Accuracy: 95-100%
- */
-console.log('Final plugin loaded - All Phases (1-6)');
+/// <reference types="@figma/plugin-typings" />
+class ImageAssembler {
+    constructor() {
+        this.buffers = new Map();
+        this.TIMEOUT_MS = 30000;
+    }
+    addChunk(nodeId, chunkIndex, data, totalChunks) {
+        if (!this.buffers.has(nodeId)) {
+            this.buffers.set(nodeId, {
+                nodeId,
+                chunks: new Map(),
+                totalChunks,
+                receivedChunks: 0,
+                createdAt: Date.now(),
+            });
+        }
+        const buffer = this.buffers.get(nodeId);
+        const uint8Array = new Uint8Array(data);
+        if (!buffer.chunks.has(chunkIndex)) {
+            buffer.chunks.set(chunkIndex, uint8Array);
+            buffer.receivedChunks += 1;
+        }
+    }
+    isComplete(nodeId) {
+        const buffer = this.buffers.get(nodeId);
+        if (!buffer)
+            return false;
+        return buffer.receivedChunks === buffer.totalChunks;
+    }
+    assemble(nodeId) {
+        const buffer = this.buffers.get(nodeId);
+        if (!buffer || !this.isComplete(nodeId)) {
+            return null;
+        }
+        const totalSize = Array.from(buffer.chunks.values()).reduce((acc, chunk) => acc + chunk.length, 0);
+        const assembled = new Uint8Array(totalSize);
+        let offset = 0;
+        for (let index = 0; index < buffer.totalChunks; index += 1) {
+            const chunk = buffer.chunks.get(index);
+            if (!chunk) {
+                console.error(`Missing chunk ${index} for node ${nodeId}`);
+                return null;
+            }
+            assembled.set(chunk, offset);
+            offset += chunk.length;
+        }
+        this.buffers.delete(nodeId);
+        return assembled;
+    }
+    cleanupTimedOut() {
+        const now = Date.now();
+        const timedOut = [];
+        for (const [nodeId, buffer] of this.buffers.entries()) {
+            if (now - buffer.createdAt > this.TIMEOUT_MS) {
+                timedOut.push(nodeId);
+                this.buffers.delete(nodeId);
+            }
+        }
+        return timedOut;
+    }
+    getStatus() {
+        const now = Date.now();
+        return Array.from(this.buffers.entries()).map(([nodeId, buffer]) => ({
+            nodeId,
+            progress: `${buffer.receivedChunks}/${buffer.totalChunks}`,
+            age: now - buffer.createdAt,
+        }));
+    }
+}
+class HierarchyBuilder {
+    constructor() {
+        this.stats = {
+            nodesCreated: 0,
+            maxDepth: 0,
+            orphanedNodes: 0,
+            imageNodes: 0,
+            textNodes: 0,
+        };
+    }
+    async buildHierarchy(flatNodes, rootParent, createNodeFn) {
+        console.log(`Building hierarchy from ${flatNodes.length} nodes...`);
+        const nodeMap = new Map(flatNodes.map((n) => [n.id, n]));
+        const roots = flatNodes.filter((node) => {
+            if (!node.parent)
+                return true;
+            const parentExists = nodeMap.has(node.parent);
+            if (!parentExists) {
+                console.warn(`Orphaned node: ${node.name || node.id} (parent ${node.parent} missing)`);
+                this.stats.orphanedNodes++;
+                return true;
+            }
+            return false;
+        });
+        console.log(`Found ${roots.length} root nodes`);
+        for (const rootNode of roots) {
+            await this.createNodeRecursive(rootNode, rootParent, flatNodes, nodeMap, createNodeFn, 0);
+        }
+        console.log("✓ Hierarchy build complete:", this.stats);
+    }
+    async createNodeRecursive(nodeData, figmaParent, allNodes, nodeMap, createNodeFn, depth) {
+        this.stats.maxDepth = Math.max(this.stats.maxDepth, depth);
+        try {
+            const figmaNode = await createNodeFn(nodeData, figmaParent);
+            if (!figmaNode) {
+                console.warn(`Failed to create node: ${nodeData.name || nodeData.id}`);
+                return null;
+            }
+            this.stats.nodesCreated++;
+            if (nodeData.type === "IMAGE")
+                this.stats.imageNodes++;
+            if (nodeData.type === "TEXT")
+                this.stats.textNodes++;
+            const children = allNodes
+                .filter((n) => n.parent === nodeData.id)
+                .sort((a, b) => {
+                var _a, _b;
+                const zA = ((_a = a.styles) === null || _a === void 0 ? void 0 : _a.zIndex) ? parseInt(a.styles.zIndex) : 0;
+                const zB = ((_b = b.styles) === null || _b === void 0 ? void 0 : _b.zIndex) ? parseInt(b.styles.zIndex) : 0;
+                return zA - zB;
+            });
+            if (children.length > 0 && "appendChild" in figmaNode) {
+                for (const childData of children) {
+                    await this.createNodeRecursive(childData, figmaNode, allNodes, nodeMap, createNodeFn, depth + 1);
+                }
+            }
+            return figmaNode;
+        }
+        catch (error) {
+            console.error(`Error creating ${nodeData.name || nodeData.id}:`, error);
+            return null;
+        }
+    }
+    getStats() {
+        return Object.assign({}, this.stats);
+    }
+}
+console.log("Final plugin loaded - All Phases (1-6) + Hierarchy Fix");
 // Show the plugin UI so users can interact with the converter
 figma.showUI(__html__, {
     width: 420,
     height: 640,
-    themeColors: true
+    themeColors: true,
 });
 let tokenVariables = {};
 let nodeBuffer = [];
 let isProcessing = false;
 let loadedFonts = new Set();
 let fontMapping = {};
+const imageAssembler = new ImageAssembler();
+const pendingImageNodes = new Map();
+const streamScreenshots = {};
+const streamStates = {};
+const streamCreatedNodes = new Map();
+let totalStreamNodesProcessed = 0;
+const STREAM_ASSEMBLY_TIMEOUT_MS = 10000;
+let SERVER_PORT = 3000; // Default, will be updated from UI
+function resetStreamState() {
+    pendingImageNodes.clear();
+    streamCreatedNodes.clear();
+    totalStreamNodesProcessed = 0;
+    for (const key of Object.keys(streamScreenshots)) {
+        delete streamScreenshots[key];
+    }
+    for (const key of Object.keys(streamStates)) {
+        delete streamStates[key];
+    }
+}
 function applyVariableFill(node, variable) {
     if (!figma.variables)
         return;
     const fills = node.fills;
     let basePaint = null;
     if (fills && fills !== figma.mixed) {
-        basePaint = fills.find((paint) => paint.type === 'SOLID') || null;
+        basePaint =
+            fills.find((paint) => paint.type === "SOLID") ||
+                null;
     }
     if (!basePaint) {
         basePaint = {
-            type: 'SOLID',
+            type: "SOLID",
             color: { r: 0, g: 0, b: 0 },
-            opacity: 1
+            opacity: 1,
         };
     }
-    const boundPaint = figma.variables.setBoundVariableForPaint(basePaint, 'color', variable);
+    const boundPaint = figma.variables.setBoundVariableForPaint(basePaint, "color", variable);
     node.fills = [boundPaint];
 }
 figma.ui.onmessage = async (msg) => {
     try {
-        switch (msg.type) {
-            case 'full_page':
-                await processFullPage(msg.data);
+        const streamTypes = new Set([
+            "NODES",
+            "FONTS",
+            "TOKENS",
+            "COMPLETE",
+            "PROGRESS",
+            "ERROR",
+        ]);
+        if (typeof msg === "object" && msg !== null) {
+            const typedMsg = msg;
+            if (typedMsg.type === "IMAGE_CHUNK") {
+                handleImageChunk(typedMsg);
+                return;
+            }
+            if (streamTypes.has(typedMsg.type)) {
+                await handleStreamEnvelope(typedMsg);
+                return;
+            }
+        }
+        const legacy = msg;
+        switch (legacy.type) {
+            case "server_config":
+                SERVER_PORT = legacy.serverPort || 3000;
+                console.log(`Server port updated to: ${SERVER_PORT}`);
                 break;
-            case 'tokens':
-                tokenVariables = await createFigmaVariables(msg.data);
+            case "full_page":
+                await processFullPage(legacy.data);
                 break;
-            case 'node_chunk':
-                nodeBuffer.push(...msg.data);
+            case "tokens":
+                tokenVariables = await createFigmaVariables(legacy.data);
+                break;
+            case "node_chunk":
+                nodeBuffer.push(...legacy.data);
                 if (!isProcessing) {
                     isProcessing = true;
                     await processBufferedNodes();
                 }
                 break;
-            case 'complete':
-                figma.ui.postMessage({ type: 'import_complete' });
+            case "complete":
+                figma.ui.postMessage({ type: "import_complete" });
                 break;
-            case 'error':
-                figma.notify(msg.error, { error: true });
+            case "error":
+                figma.notify(legacy.error, { error: true });
                 break;
         }
     }
     catch (error) {
         console.error(error);
-        figma.notify('Error processing data', { error: true });
+        figma.notify("Error processing data", { error: true });
     }
 };
+async function handleStreamEnvelope(msg) {
+    var _a, _b;
+    switch (msg.type) {
+        case "TOKENS":
+            resetStreamState();
+            tokenVariables = await createFigmaVariables(msg.payload || {});
+            break;
+        case "FONTS":
+            if (Array.isArray(msg.payload)) {
+                await processFonts(msg.payload);
+            }
+            break;
+        case "NODES":
+            if ((_a = msg.payload) === null || _a === void 0 ? void 0 : _a.nodes) {
+                await handleStreamNodeBatch(msg.payload.nodes);
+            }
+            break;
+        case "PROGRESS":
+            figma.ui.postMessage(Object.assign({ type: "PROGRESS_UPDATE" }, msg.payload));
+            break;
+        case "ERROR":
+            figma.notify(`Error: ${((_b = msg.payload) === null || _b === void 0 ? void 0 : _b.message) || "Unknown error"}`, {
+                error: true,
+            });
+            break;
+        case "COMPLETE":
+            await handleStreamComplete(msg.payload);
+            break;
+    }
+}
+// ✅ UPDATED: Use hierarchy builder for streaming
+async function handleStreamNodeBatch(nodes) {
+    const streamFullData = {
+        screenshots: streamScreenshots,
+        states: streamStates,
+    };
+    // ✅ Use hierarchy builder for stream too
+    const builder = new HierarchyBuilder();
+    // Separate nodes into regular and deferred (image chunks)
+    const regularNodes = nodes.filter((n) => { var _a; return !((_a = n.imageChunkRef) === null || _a === void 0 ? void 0 : _a.isStreamed); });
+    const deferredNodes = nodes.filter((n) => { var _a; return (_a = n.imageChunkRef) === null || _a === void 0 ? void 0 : _a.isStreamed; });
+    // Store screenshots and states
+    for (const node of nodes) {
+        if (node.screenshot) {
+            streamScreenshots[node.id] = node.screenshot;
+        }
+        if (node.states) {
+            streamStates[node.id] = node.states;
+        }
+    }
+    // Defer image nodes
+    for (const node of deferredNodes) {
+        pendingImageNodes.set(node.id, node);
+        console.log(`Deferring image node ${node.id} (waiting for ${node.imageChunkRef.totalChunks} chunks)`);
+    }
+    // Build hierarchy for regular nodes
+    if (regularNodes.length > 0) {
+        await builder.buildHierarchy(regularNodes, figma.currentPage, async (nodeData, parent) => {
+            const figmaNode = await createEnhancedNode(nodeData, parent, streamFullData, streamCreatedNodes);
+            if (figmaNode) {
+                streamCreatedNodes.set(nodeData.id, figmaNode);
+            }
+            return figmaNode;
+        });
+        const stats = builder.getStats();
+        totalStreamNodesProcessed += stats.nodesCreated;
+    }
+    figma.ui.postMessage({
+        type: "PROGRESS_UPDATE",
+        nodesProcessed: totalStreamNodesProcessed,
+    });
+}
+function handleImageChunk(chunk) {
+    imageAssembler.addChunk(chunk.nodeId, chunk.chunkIndex, chunk.data, chunk.totalChunks);
+    if (imageAssembler.isComplete(chunk.nodeId)) {
+        void createPendingImageNode(chunk.nodeId);
+    }
+}
+function createPlaceholderForFailedImage(node) {
+    var _a, _b, _c, _d;
+    const placeholder = figma.createRectangle();
+    placeholder.name = `Failed Image: ${node.id}`;
+    placeholder.resize(Math.max(1, ((_a = node.rect) === null || _a === void 0 ? void 0 : _a.width) || 100), Math.max(1, ((_b = node.rect) === null || _b === void 0 ? void 0 : _b.height) || 100));
+    placeholder.fills = [
+        {
+            type: "SOLID",
+            color: { r: 0.9, g: 0.9, b: 0.9 },
+        },
+    ];
+    placeholder.x = ((_c = node.rect) === null || _c === void 0 ? void 0 : _c.x) || 0;
+    placeholder.y = ((_d = node.rect) === null || _d === void 0 ? void 0 : _d.y) || 0;
+    return placeholder;
+}
+async function createPendingImageNode(nodeId) {
+    const node = pendingImageNodes.get(nodeId);
+    if (!node) {
+        console.error(`No pending node found for ${nodeId}`);
+        return;
+    }
+    const assembled = imageAssembler.assemble(nodeId);
+    if (!assembled) {
+        console.error(`Failed to assemble image for node ${nodeId}`);
+        return;
+    }
+    node.imageData = Array.from(assembled);
+    delete node.imageChunkRef;
+    const streamFullData = {
+        screenshots: streamScreenshots,
+        states: streamStates,
+    };
+    const figmaNode = await createEnhancedNode(node, figma.currentPage, streamFullData, streamCreatedNodes);
+    if (figmaNode) {
+        streamCreatedNodes.set(node.id, figmaNode);
+        totalStreamNodesProcessed += 1;
+    }
+    pendingImageNodes.delete(nodeId);
+    figma.ui.postMessage({
+        type: "IMAGE_ASSEMBLED",
+        nodeId,
+        nodesProcessed: totalStreamNodesProcessed,
+    });
+}
+async function handleStreamComplete(payload) {
+    const maxWait = STREAM_ASSEMBLY_TIMEOUT_MS;
+    const startTime = Date.now();
+    while (pendingImageNodes.size > 0 && Date.now() - startTime < maxWait) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const timedOut = imageAssembler.cleanupTimedOut();
+        if (timedOut.length > 0) {
+            for (const nodeId of timedOut) {
+                const node = pendingImageNodes.get(nodeId);
+                if (!node)
+                    continue;
+                const placeholder = createPlaceholderForFailedImage(node);
+                figma.currentPage.appendChild(placeholder);
+                streamCreatedNodes.set(nodeId, placeholder);
+                pendingImageNodes.delete(nodeId);
+                totalStreamNodesProcessed += 1;
+            }
+        }
+    }
+    if (pendingImageNodes.size > 0) {
+        const stuck = Array.from(pendingImageNodes.keys());
+        console.error(`${pendingImageNodes.size} images never completed:`, stuck);
+        for (const nodeId of stuck) {
+            const node = pendingImageNodes.get(nodeId);
+            if (!node)
+                continue;
+            const placeholder = createPlaceholderForFailedImage(node);
+            figma.currentPage.appendChild(placeholder);
+            streamCreatedNodes.set(nodeId, placeholder);
+            pendingImageNodes.delete(nodeId);
+            totalStreamNodesProcessed += 1;
+        }
+    }
+    figma.notify(`✓ Import complete: ${totalStreamNodesProcessed} nodes created`, { timeout: 3000 });
+    console.log("Import stats:", payload);
+}
+// ✅ UPDATED: Use hierarchy builder for full page import
 async function processFullPage(data) {
     const startTime = Date.now();
     // Step 1: Process fonts
@@ -84,24 +411,27 @@ async function processFullPage(data) {
     }
     // Step 3: Create container
     const container = figma.createFrame();
-    container.name = 'Imported Page';
+    container.name = "Imported Page";
     container.x = 0;
     container.y = 0;
     container.resize(data.viewport.width, data.viewport.height);
-    container.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+    container.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
     container.clipsContent = false;
-    // Step 4: Create nodes with all enhancements
+    // ✅ Step 4: Build hierarchy using HierarchyBuilder
+    const builder = new HierarchyBuilder();
     const createdNodes = new Map();
-    for (const node of data.nodes) {
-        const figmaNode = await createEnhancedNode(node, container, data, createdNodes);
+    await builder.buildHierarchy(data.nodes, container, async (nodeData, parent) => {
+        const figmaNode = await createEnhancedNode(nodeData, parent, data, createdNodes);
         if (figmaNode) {
-            createdNodes.set(node.id, figmaNode);
+            createdNodes.set(nodeData.id, figmaNode);
         }
-    }
+        return figmaNode;
+    });
+    const stats = builder.getStats();
     figma.currentPage.appendChild(container);
     figma.viewport.scrollAndZoomIntoView([container]);
     const elapsed = Date.now() - startTime;
-    figma.notify(`✓ Import complete: ${data.nodes.length} nodes in ${elapsed}ms`, { timeout: 3000 });
+    figma.notify(`✓ Import complete: ${stats.nodesCreated} nodes (${stats.maxDepth} levels) in ${elapsed}ms`, { timeout: 3000 });
 }
 async function processBufferedNodes() {
     while (nodeBuffer.length > 0) {
@@ -109,7 +439,7 @@ async function processBufferedNodes() {
         for (const node of batch) {
             await createEnhancedNode(node, figma.currentPage, {}, new Map());
         }
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise((r) => setTimeout(r, 10));
     }
     isProcessing = false;
 }
@@ -118,15 +448,15 @@ async function processBufferedNodes() {
  */
 async function processFonts(fonts) {
     const fontFamilies = new Set();
-    fonts.forEach(font => {
+    fonts.forEach((font) => {
         fontFamilies.add(font.family);
     });
-    console.log('Detected font families:', Array.from(fontFamilies));
+    console.log("Detected font families:", Array.from(fontFamilies));
     for (const family of fontFamilies) {
         const figmaFont = mapToFigmaFont(family);
         fontMapping[family] = figmaFont;
         // Pre-load common weights
-        const weights = ['Regular', 'Medium', 'Semi Bold', 'Bold', 'Light'];
+        const weights = ["Regular", "Medium", "Semi Bold", "Bold", "Light"];
         for (const weight of weights) {
             try {
                 await figma.loadFontAsync({ family: figmaFont.family, style: weight });
@@ -140,37 +470,42 @@ async function processFonts(fonts) {
     }
 }
 function mapToFigmaFont(webFont) {
-    const cleanFont = webFont.toLowerCase().replace(/['"]/g, '').split(',')[0].trim();
+    const cleanFont = webFont
+        .toLowerCase()
+        .replace(/['"]/g, "")
+        .split(",")[0]
+        .trim();
     const fontMap = {
-        'inter': 'Inter',
-        'roboto': 'Roboto',
-        'open sans': 'Open Sans',
-        'lato': 'Lato',
-        'montserrat': 'Montserrat',
-        'source sans pro': 'Source Sans Pro',
-        'raleway': 'Raleway',
-        'poppins': 'Poppins',
-        'nunito': 'Nunito',
-        'ubuntu': 'Ubuntu',
-        'playfair display': 'Playfair Display',
-        'merriweather': 'Merriweather',
-        'work sans': 'Work Sans',
-        'arial': 'Arial',
-        'helvetica': 'Helvetica',
-        'helvetica neue': 'Helvetica Neue',
-        'times new roman': 'Times New Roman',
-        'georgia': 'Georgia',
-        'courier new': 'Courier New',
-        'verdana': 'Verdana',
-        'trebuchet ms': 'Trebuchet MS',
-        'sans-serif': 'Inter',
-        'serif': 'Roboto Serif',
-        'monospace': 'Roboto Mono'
+        inter: "Inter",
+        roboto: "Roboto",
+        "open sans": "Open Sans",
+        lato: "Lato",
+        montserrat: "Montserrat",
+        "source sans pro": "Source Sans Pro",
+        raleway: "Raleway",
+        poppins: "Poppins",
+        nunito: "Nunito",
+        ubuntu: "Ubuntu",
+        "playfair display": "Playfair Display",
+        merriweather: "Merriweather",
+        "work sans": "Work Sans",
+        arial: "Arial",
+        helvetica: "Helvetica",
+        "helvetica neue": "Helvetica Neue",
+        "times new roman": "Times New Roman",
+        georgia: "Georgia",
+        "courier new": "Courier New",
+        verdana: "Verdana",
+        "trebuchet ms": "Trebuchet MS",
+        "sans-serif": "Inter",
+        serif: "Roboto Serif",
+        monospace: "Roboto Mono",
     };
-    return { family: fontMap[cleanFont] || 'Inter', style: 'Regular' };
+    return { family: fontMap[cleanFont] || "Inter", style: "Regular" };
 }
 /**
  * PHASE 3-6: Enhanced Node Creation with All Features
+ * NOTE: This function is called by HierarchyBuilder recursively
  */
 async function createEnhancedNode(nodeData, parent, fullData, createdNodes) {
     let node = null;
@@ -178,13 +513,13 @@ async function createEnhancedNode(nodeData, parent, fullData, createdNodes) {
         const hasScreenshot = fullData.screenshots && fullData.screenshots[nodeData.id];
         const hasStates = fullData.states && fullData.states[nodeData.id];
         // Create base node based on type
-        if (nodeData.type === 'TEXT' && nodeData.text) {
+        if (nodeData.type === "TEXT" && nodeData.text) {
             node = await createTextNode(nodeData, hasScreenshot);
         }
-        else if (nodeData.type === 'IMAGE' && nodeData.image) {
+        else if (nodeData.type === "IMAGE" && nodeData.image) {
             node = await createImageNode(nodeData);
         }
-        else if (nodeData.type === 'SVG' && nodeData.svg) {
+        else if (nodeData.type === "SVG" && nodeData.svg) {
             node = await createSVGNode(nodeData);
         }
         else {
@@ -195,33 +530,35 @@ async function createEnhancedNode(nodeData, parent, fullData, createdNodes) {
         // Apply common properties
         node.x = nodeData.rect.x;
         node.y = nodeData.rect.y;
-        if ('resize' in node) {
+        if ("resize" in node) {
             node.resize(Math.max(1, nodeData.rect.width), Math.max(1, nodeData.rect.height));
         }
         // PHASE 3: Apply screenshot as background
-        if (hasScreenshot && 'appendChild' in node) {
+        if (hasScreenshot && "appendChild" in node) {
             await applyScreenshotBackground(node, fullData.screenshots[nodeData.id]);
         }
         // PHASE 5: Apply advanced effects
         await applyAdvancedEffects(node, nodeData.styles);
         // PHASE 6: Apply pseudo-elements
-        if (nodeData.pseudoElements && 'appendChild' in node) {
+        if (nodeData.pseudoElements && "appendChild" in node) {
             for (const pseudo of nodeData.pseudoElements) {
                 await createPseudoElement(node, pseudo);
             }
         }
         // PHASE 6: Create state variants
-        if (hasStates && 'appendChild' in node) {
+        if (hasStates && "appendChild" in node) {
             await createStateVariants(node, fullData.states[nodeData.id]);
         }
-        node.name = nodeData.componentHint || nodeData.tag || 'element';
-        if (parent && 'appendChild' in parent) {
+        node.name =
+            nodeData.name || nodeData.componentHint || nodeData.tag || "element";
+        // ✅ Parent is now passed by HierarchyBuilder
+        if (parent && "appendChild" in parent) {
             parent.appendChild(node);
         }
         return node;
     }
     catch (error) {
-        console.error('Error creating node:', error, nodeData);
+        console.error("Error creating node:", error, nodeData);
         return null;
     }
 }
@@ -232,10 +569,13 @@ async function createTextNode(nodeData, hasScreenshot) {
     var _a, _b;
     const textNode = figma.createText();
     // Determine font
-    let fontFamily = 'Inter';
-    let fontStyle = 'Regular';
+    let fontFamily = "Inter";
+    let fontStyle = "Regular";
     if (nodeData.styles.fontFamily) {
-        const webFontFamily = nodeData.styles.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+        const webFontFamily = nodeData.styles.fontFamily
+            .split(",")[0]
+            .replace(/['"]/g, "")
+            .trim();
         const mapped = fontMapping[webFontFamily] || mapToFigmaFont(webFontFamily);
         fontFamily = mapped.family;
         fontStyle = mapped.style;
@@ -244,17 +584,17 @@ async function createTextNode(nodeData, hasScreenshot) {
     if (nodeData.styles.fontWeight) {
         const weight = parseInt(nodeData.styles.fontWeight);
         if (weight >= 700)
-            fontStyle = 'Bold';
+            fontStyle = "Bold";
         else if (weight >= 600)
-            fontStyle = 'Semi Bold';
+            fontStyle = "Semi Bold";
         else if (weight >= 500)
-            fontStyle = 'Medium';
+            fontStyle = "Medium";
         else if (weight < 400)
-            fontStyle = 'Light';
+            fontStyle = "Light";
     }
     await ensureFontLoaded(fontFamily, fontStyle);
     textNode.fontName = { family: fontFamily, style: fontStyle };
-    textNode.characters = nodeData.text || '';
+    textNode.characters = nodeData.text || "";
     // Apply text styles
     if (nodeData.styles.fontSize) {
         textNode.fontSize = parseFloat(nodeData.styles.fontSize);
@@ -267,7 +607,9 @@ async function createTextNode(nodeData, hasScreenshot) {
         else {
             const color = parseColor(nodeData.styles.color);
             if (color) {
-                textNode.fills = [Object.assign({ type: 'SOLID', color: { r: color.r, g: color.g, b: color.b } }, (color.a !== 1 ? { opacity: color.a } : {}))];
+                textNode.fills = [
+                    Object.assign({ type: "SOLID", color: { r: color.r, g: color.g, b: color.b } }, (color.a !== 1 ? { opacity: color.a } : {})),
+                ];
             }
         }
     }
@@ -277,35 +619,35 @@ async function createTextNode(nodeData, hasScreenshot) {
     if (nodeData.styles.letterSpacing) {
         const value = parseFloat(nodeData.styles.letterSpacing);
         if (!isNaN(value)) {
-            textNode.letterSpacing = { value, unit: 'PIXELS' };
+            textNode.letterSpacing = { value, unit: "PIXELS" };
         }
     }
-    if (nodeData.styles.lineHeight && nodeData.styles.lineHeight !== 'normal') {
+    if (nodeData.styles.lineHeight && nodeData.styles.lineHeight !== "normal") {
         const value = parseFloat(nodeData.styles.lineHeight);
         if (!isNaN(value)) {
-            textNode.lineHeight = { value, unit: 'PIXELS' };
+            textNode.lineHeight = { value, unit: "PIXELS" };
         }
     }
     if (nodeData.styles.textAlign) {
         const align = nodeData.styles.textAlign.toUpperCase();
-        if (['LEFT', 'CENTER', 'RIGHT', 'JUSTIFIED'].includes(align)) {
+        if (["LEFT", "CENTER", "RIGHT", "JUSTIFIED"].includes(align)) {
             textNode.textAlignHorizontal = align;
         }
     }
-    if (nodeData.styles.textTransform === 'uppercase') {
-        textNode.textCase = 'UPPER';
+    if (nodeData.styles.textTransform === "uppercase") {
+        textNode.textCase = "UPPER";
     }
-    else if (nodeData.styles.textTransform === 'lowercase') {
-        textNode.textCase = 'LOWER';
+    else if (nodeData.styles.textTransform === "lowercase") {
+        textNode.textCase = "LOWER";
     }
-    else if (nodeData.styles.textTransform === 'capitalize') {
-        textNode.textCase = 'TITLE';
+    else if (nodeData.styles.textTransform === "capitalize") {
+        textNode.textCase = "TITLE";
     }
-    if ((_a = nodeData.styles.textDecoration) === null || _a === void 0 ? void 0 : _a.includes('underline')) {
-        textNode.textDecoration = 'UNDERLINE';
+    if ((_a = nodeData.styles.textDecoration) === null || _a === void 0 ? void 0 : _a.includes("underline")) {
+        textNode.textDecoration = "UNDERLINE";
     }
-    else if ((_b = nodeData.styles.textDecoration) === null || _b === void 0 ? void 0 : _b.includes('line-through')) {
-        textNode.textDecoration = 'STRIKETHROUGH';
+    else if ((_b = nodeData.styles.textDecoration) === null || _b === void 0 ? void 0 : _b.includes("line-through")) {
+        textNode.textDecoration = "STRIKETHROUGH";
     }
     return textNode;
 }
@@ -314,35 +656,56 @@ async function createTextNode(nodeData, hasScreenshot) {
  */
 async function createImageNode(nodeData) {
     const rect = figma.createRectangle();
-    if (nodeData.image) {
+    if (nodeData.imageData && nodeData.imageData.length > 0) {
+        try {
+            const bytes = new Uint8Array(nodeData.imageData);
+            const image = figma.createImage(bytes);
+            rect.fills = [
+                {
+                    type: "IMAGE",
+                    imageHash: image.hash,
+                    scaleMode: "FILL",
+                },
+            ];
+        }
+        catch (error) {
+            console.error("Failed to apply inline image data:", error);
+            rect.fills = [{ type: "SOLID", color: { r: 0.9, g: 0.9, b: 0.9 } }];
+        }
+    }
+    else if (nodeData.image) {
         let imageData = nodeData.image.data;
         if (!imageData && nodeData.image.needsProxy) {
-            const proxiedUrl = `http://localhost:3000/proxy-image?url=${encodeURIComponent(nodeData.image.url)}`;
+            const proxiedUrl = `http://localhost:${SERVER_PORT}/proxy-image?url=${encodeURIComponent(nodeData.image.url)}`;
             try {
                 const response = await fetch(proxiedUrl);
                 const buffer = await response.arrayBuffer();
                 const bytes = new Uint8Array(buffer);
                 const image = figma.createImage(bytes);
-                rect.fills = [{
-                        type: 'IMAGE',
+                rect.fills = [
+                    {
+                        type: "IMAGE",
                         imageHash: image.hash,
-                        scaleMode: 'FILL'
-                    }];
+                        scaleMode: "FILL",
+                    },
+                ];
             }
             catch (e) {
-                console.error('Image proxy failed:', e);
-                rect.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.9, b: 0.9 } }];
+                console.error("Image proxy failed:", e);
+                rect.fills = [{ type: "SOLID", color: { r: 0.9, g: 0.9, b: 0.9 } }];
             }
         }
         else if (imageData) {
-            const base64 = imageData.replace(/^data:image\/\w+;base64,/, '');
+            const base64 = imageData.replace(/^data:image\/\w+;base64,/, "");
             const bytes = figma.base64Decode(base64);
             const image = figma.createImage(bytes);
-            rect.fills = [{
-                    type: 'IMAGE',
+            rect.fills = [
+                {
+                    type: "IMAGE",
                     imageHash: image.hash,
-                    scaleMode: 'FILL'
-                }];
+                    scaleMode: "FILL",
+                },
+            ];
         }
     }
     return rect;
@@ -352,14 +715,16 @@ async function createImageNode(nodeData) {
  */
 async function createSVGNode(nodeData) {
     const frame = figma.createFrame();
-    frame.name = 'SVG';
+    frame.name = "SVG";
     // Note: Figma Plugin API has limited SVG support
     // Best approach: Rasterize on server and import as image
     // For now, create placeholder
-    frame.fills = [{
-            type: 'SOLID',
-            color: { r: 0.95, g: 0.95, b: 0.95 }
-        }];
+    frame.fills = [
+        {
+            type: "SOLID",
+            color: { r: 0.95, g: 0.95, b: 0.95 },
+        },
+    ];
     return frame;
 }
 /**
@@ -370,30 +735,32 @@ async function createFrameNode(nodeData, hasScreenshot) {
     const frame = figma.createFrame();
     // Apply background
     if (!hasScreenshot) {
-        if ((_a = nodeData.styles.backgroundImage) === null || _a === void 0 ? void 0 : _a.includes('gradient')) {
+        if ((_a = nodeData.styles.backgroundImage) === null || _a === void 0 ? void 0 : _a.includes("gradient")) {
             const gradient = parseGradient(nodeData.styles.backgroundImage);
             if (gradient) {
                 frame.fills = [gradient];
             }
         }
-        else if ((_b = nodeData.styles.backgroundImage) === null || _b === void 0 ? void 0 : _b.includes('url')) {
+        else if ((_b = nodeData.styles.backgroundImage) === null || _b === void 0 ? void 0 : _b.includes("url")) {
             // Background image
             const urlMatch = nodeData.styles.backgroundImage.match(/url\(['"]?([^'"()]+)['"]?\)/);
             if (urlMatch) {
                 try {
-                    const proxiedUrl = `http://localhost:3000/proxy-image?url=${encodeURIComponent(urlMatch[1])}`;
+                    const proxiedUrl = `http://localhost:${SERVER_PORT}/proxy-image?url=${encodeURIComponent(urlMatch[1])}`;
                     const response = await fetch(proxiedUrl);
                     const buffer = await response.arrayBuffer();
                     const bytes = new Uint8Array(buffer);
                     const image = figma.createImage(bytes);
-                    frame.fills = [{
-                            type: 'IMAGE',
+                    frame.fills = [
+                        {
+                            type: "IMAGE",
                             imageHash: image.hash,
-                            scaleMode: 'FILL'
-                        }];
+                            scaleMode: "FILL",
+                        },
+                    ];
                 }
                 catch (e) {
-                    console.warn('Background image failed');
+                    console.warn("Background image failed");
                 }
             }
         }
@@ -405,7 +772,9 @@ async function createFrameNode(nodeData, hasScreenshot) {
             else {
                 const color = parseColor(nodeData.styles.backgroundColor);
                 if (color) {
-                    frame.fills = [Object.assign({ type: 'SOLID', color: { r: color.r, g: color.g, b: color.b } }, (color.a !== 1 ? { opacity: color.a } : {}))];
+                    frame.fills = [
+                        Object.assign({ type: "SOLID", color: { r: color.r, g: color.g, b: color.b } }, (color.a !== 1 ? { opacity: color.a } : {})),
+                    ];
                 }
             }
         }
@@ -414,8 +783,9 @@ async function createFrameNode(nodeData, hasScreenshot) {
         }
     }
     // Apply auto-layout
-    if (nodeData.styles.display === 'flex') {
-        frame.layoutMode = nodeData.styles.flexDirection === 'column' ? 'VERTICAL' : 'HORIZONTAL';
+    if (nodeData.styles.display === "flex") {
+        frame.layoutMode =
+            nodeData.styles.flexDirection === "column" ? "VERTICAL" : "HORIZONTAL";
         if (nodeData.styles.gap) {
             const gap = parseFloat(nodeData.styles.gap);
             if (!isNaN(gap))
@@ -433,10 +803,10 @@ async function createFrameNode(nodeData, hasScreenshot) {
         }
         if (nodeData.styles.justifyContent) {
             const map = {
-                'flex-start': 'MIN',
-                'center': 'CENTER',
-                'flex-end': 'MAX',
-                'space-between': 'SPACE_BETWEEN'
+                "flex-start": "MIN",
+                center: "CENTER",
+                "flex-end": "MAX",
+                "space-between": "SPACE_BETWEEN",
             };
             if (map[nodeData.styles.justifyContent]) {
                 frame.primaryAxisAlignItems = map[nodeData.styles.justifyContent];
@@ -444,10 +814,10 @@ async function createFrameNode(nodeData, hasScreenshot) {
         }
         if (nodeData.styles.alignItems) {
             const map = {
-                'flex-start': 'MIN',
-                'center': 'CENTER',
-                'flex-end': 'MAX',
-                'stretch': 'STRETCH'
+                "flex-start": "MIN",
+                center: "CENTER",
+                "flex-end": "MAX",
+                stretch: "STRETCH",
             };
             if (map[nodeData.styles.alignItems]) {
                 frame.counterAxisAlignItems = map[nodeData.styles.alignItems];
@@ -467,13 +837,15 @@ async function createFrameNode(nodeData, hasScreenshot) {
     }
     // Border
     if (nodeData.styles.border || nodeData.styles.borderWidth) {
-        const color = parseColor(nodeData.styles.borderColor || '#000000');
-        const width = parseFloat(nodeData.styles.borderWidth || '1');
+        const color = parseColor(nodeData.styles.borderColor || "#000000");
+        const width = parseFloat(nodeData.styles.borderWidth || "1");
         if (color && !isNaN(width)) {
-            frame.strokes = [{
-                    type: 'SOLID',
-                    color: { r: color.r, g: color.g, b: color.b }
-                }];
+            frame.strokes = [
+                {
+                    type: "SOLID",
+                    color: { r: color.r, g: color.g, b: color.b },
+                },
+            ];
             frame.strokeWeight = width;
         }
     }
@@ -489,7 +861,8 @@ async function createFrameNode(nodeData, hasScreenshot) {
         }
     }
     // Overflow
-    if (nodeData.styles.overflow === 'hidden' || nodeData.styles.overflowX === 'hidden') {
+    if (nodeData.styles.overflow === "hidden" ||
+        nodeData.styles.overflowX === "hidden") {
         frame.clipsContent = true;
     }
     return frame;
@@ -498,23 +871,23 @@ async function createFrameNode(nodeData, hasScreenshot) {
  * PHASE 5: Apply advanced effects
  */
 async function applyAdvancedEffects(node, styles) {
-    if (!('effects' in node))
+    if (!("effects" in node))
         return;
     const effects = [];
     // Box shadow (multi-layer support)
-    if (styles.boxShadow && styles.boxShadow !== 'none') {
+    if (styles.boxShadow && styles.boxShadow !== "none") {
         const shadows = parseBoxShadow(styles.boxShadow);
         effects.push(...shadows);
     }
     // Filters (limited Figma support)
-    if (styles.filter && styles.filter !== 'none') {
+    if (styles.filter && styles.filter !== "none") {
         const blurMatch = styles.filter.match(/blur\(([\d.]+)px\)/);
         if (blurMatch) {
             effects.push({
-                type: 'LAYER_BLUR',
-                blurType: 'NORMAL',
+                type: "LAYER_BLUR",
+                blurType: "NORMAL",
                 radius: parseFloat(blurMatch[1]),
-                visible: true
+                visible: true,
             });
         }
     }
@@ -530,18 +903,20 @@ async function applyScreenshotBackground(frame, screenshotBase64) {
         const bytes = figma.base64Decode(screenshotBase64);
         const image = figma.createImage(bytes);
         const bg = figma.createRectangle();
-        bg.name = '__screenshot-bg';
+        bg.name = "__screenshot-bg";
         bg.resize(frame.width, frame.height);
-        bg.fills = [{
-                type: 'IMAGE',
+        bg.fills = [
+            {
+                type: "IMAGE",
                 imageHash: image.hash,
-                scaleMode: 'FILL'
-            }];
+                scaleMode: "FILL",
+            },
+        ];
         frame.appendChild(bg);
         frame.insertChild(0, bg);
     }
     catch (e) {
-        console.error('Screenshot background failed:', e);
+        console.error("Screenshot background failed:", e);
     }
 }
 /**
@@ -559,14 +934,16 @@ async function createPseudoElement(parent, pseudo) {
     if (pseudo.styles.backgroundColor) {
         const color = parseColor(pseudo.styles.backgroundColor);
         if (color) {
-            pseudoFrame.fills = [{
-                    type: 'SOLID',
-                    color: { r: color.r, g: color.g, b: color.b }
-                }];
+            pseudoFrame.fills = [
+                {
+                    type: "SOLID",
+                    color: { r: color.r, g: color.g, b: color.b },
+                },
+            ];
         }
     }
     parent.appendChild(pseudoFrame);
-    if (pseudo.type === 'before') {
+    if (pseudo.type === "before") {
         parent.insertChild(0, pseudoFrame);
     }
 }
@@ -576,13 +953,13 @@ async function createPseudoElement(parent, pseudo) {
 async function createStateVariants(node, states) {
     // Create component set with variants for states
     // For now, just add a note
-    node.name = `${node.name} (has states: ${Object.keys(states).join(', ')})`;
+    node.name = `${node.name} (has states: ${Object.keys(states).join(", ")})`;
 }
 /**
  * PHASE 5: Parse gradient
  */
 function parseGradient(gradientString) {
-    if (!gradientString.includes('linear-gradient'))
+    if (!gradientString.includes("linear-gradient"))
         return null;
     try {
         const match = gradientString.match(/linear-gradient\(([^)]+)\)/);
@@ -592,18 +969,18 @@ function parseGradient(gradientString) {
         let angle = 180; // Default
         let colorStops = [];
         // Check for angle
-        const parts = content.split(',').map(s => s.trim());
-        if (parts[0].includes('deg') || parts[0].includes('to ')) {
-            if (parts[0].includes('deg')) {
+        const parts = content.split(",").map((s) => s.trim());
+        if (parts[0].includes("deg") || parts[0].includes("to ")) {
+            if (parts[0].includes("deg")) {
                 angle = parseFloat(parts[0]);
             }
-            else if (parts[0] === 'to right')
+            else if (parts[0] === "to right")
                 angle = 90;
-            else if (parts[0] === 'to left')
+            else if (parts[0] === "to left")
                 angle = 270;
-            else if (parts[0] === 'to top')
+            else if (parts[0] === "to top")
                 angle = 0;
-            else if (parts[0] === 'to bottom')
+            else if (parts[0] === "to bottom")
                 angle = 180;
             colorStops = parts.slice(1);
         }
@@ -620,7 +997,7 @@ function parseGradient(gradientString) {
                 if (color) {
                     stops.push({
                         color: { r: color.r, g: color.g, b: color.b, a: color.a },
-                        position
+                        position,
                     });
                 }
             }
@@ -629,7 +1006,7 @@ function parseGradient(gradientString) {
                 if (color) {
                     stops.push({
                         color: { r: color.r, g: color.g, b: color.b, a: color.a },
-                        position: i / (colorStops.length - 1)
+                        position: i / (colorStops.length - 1),
                     });
                 }
             }
@@ -640,16 +1017,16 @@ function parseGradient(gradientString) {
         const rad = (angle * Math.PI) / 180;
         const transform = [
             [Math.cos(rad), Math.sin(rad), 0.5],
-            [-Math.sin(rad), Math.cos(rad), 0.5]
+            [-Math.sin(rad), Math.cos(rad), 0.5],
         ];
         return {
-            type: 'GRADIENT_LINEAR',
+            type: "GRADIENT_LINEAR",
             gradientTransform: transform,
-            gradientStops: stops
+            gradientStops: stops,
         };
     }
     catch (e) {
-        console.warn('Gradient parsing failed:', e);
+        console.warn("Gradient parsing failed:", e);
         return null;
     }
 }
@@ -661,22 +1038,22 @@ function parseBoxShadow(shadowString) {
     const effects = [];
     for (const shadow of shadows) {
         const trimmed = shadow.trim();
-        const isInset = trimmed.startsWith('inset');
+        const isInset = trimmed.startsWith("inset");
         const str = isInset ? trimmed.substring(5).trim() : trimmed;
         const parts = str.match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px(?:\s+([\d.]+)px)?\s+(.+)/);
         if (parts) {
             const color = parseColor(parts[5]) || { r: 0, g: 0, b: 0, a: 0.25 };
             effects.push({
-                type: isInset ? 'INNER_SHADOW' : 'DROP_SHADOW',
+                type: isInset ? "INNER_SHADOW" : "DROP_SHADOW",
                 offset: {
                     x: parseFloat(parts[1]),
-                    y: parseFloat(parts[2])
+                    y: parseFloat(parts[2]),
                 },
                 radius: parseFloat(parts[3]),
                 spread: parts[4] ? parseFloat(parts[4]) : 0,
                 color: { r: color.r, g: color.g, b: color.b, a: color.a },
-                blendMode: 'NORMAL',
-                visible: true
+                blendMode: "NORMAL",
+                visible: true,
             });
         }
     }
@@ -691,8 +1068,8 @@ function parseColor(color) {
     try {
         color = color.trim();
         // Hex
-        if (color.startsWith('#')) {
-            const hex = color.replace('#', '');
+        if (color.startsWith("#")) {
+            const hex = color.replace("#", "");
             if (hex.length === 3) {
                 const r = parseInt(hex[0] + hex[0], 16);
                 const g = parseInt(hex[1] + hex[1], 16);
@@ -714,7 +1091,7 @@ function parseColor(color) {
             }
         }
         // RGB/RGBA
-        if (color.startsWith('rgb')) {
+        if (color.startsWith("rgb")) {
             const values = color.match(/[\d.]+/g);
             if (values && values.length >= 3) {
                 const alpha = values.length >= 4 ? parseFloat(values[3]) : 1;
@@ -722,15 +1099,19 @@ function parseColor(color) {
                     r: parseFloat(values[0]) / 255,
                     g: parseFloat(values[1]) / 255,
                     b: parseFloat(values[2]) / 255,
-                    a: alpha > 1 ? alpha / 255 : alpha
+                    a: alpha > 1 ? alpha / 255 : alpha,
                 };
             }
         }
         // Named colors
         const named = {
-            'black': '#000000', 'white': '#ffffff', 'red': '#ff0000',
-            'green': '#008000', 'blue': '#0000ff', 'yellow': '#ffff00',
-            'transparent': 'rgba(0,0,0,0)'
+            black: "#000000",
+            white: "#ffffff",
+            red: "#ff0000",
+            green: "#008000",
+            blue: "#0000ff",
+            yellow: "#ffff00",
+            transparent: "rgba(0,0,0,0)",
         };
         if (named[color.toLowerCase()]) {
             return parseColor(named[color.toLowerCase()]);
@@ -752,12 +1133,12 @@ async function ensureFontLoaded(family, style) {
     }
     catch (e) {
         try {
-            await figma.loadFontAsync({ family, style: 'Regular' });
+            await figma.loadFontAsync({ family, style: "Regular" });
             loadedFonts.add(`${family}__Regular`);
         }
         catch (e2) {
-            await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
-            loadedFonts.add('Inter__Regular');
+            await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+            loadedFonts.add("Inter__Regular");
         }
     }
 }
@@ -770,27 +1151,32 @@ async function createFigmaVariables(tokens) {
         if (!figma.variables)
             return variables;
         const collections = {
-            colors: figma.variables.createVariableCollection('Colors'),
-            spacing: figma.variables.createVariableCollection('Spacing'),
-            radii: figma.variables.createVariableCollection('Radii')
+            colors: figma.variables.createVariableCollection("Colors"),
+            spacing: figma.variables.createVariableCollection("Spacing"),
+            radii: figma.variables.createVariableCollection("Radii"),
         };
         // Process explicit tokens (CSS variables)
         for (const [cssVar, value] of Object.entries(tokens.explicit || {})) {
-            if (typeof value !== 'string')
+            if (typeof value !== "string")
                 continue;
-            const cleanName = String(cssVar).replace(/^--/, '').replace(/-/g, '/');
-            if (value.includes('rgb') || value.includes('#')) {
-                const variable = figma.variables.createVariable(cleanName, collections.colors, 'COLOR');
+            const cleanName = String(cssVar).replace(/^--/, "").replace(/-/g, "/");
+            if (value.includes("rgb") || value.includes("#")) {
+                const variable = figma.variables.createVariable(cleanName, collections.colors, "COLOR");
                 const color = parseColor(value);
                 if (color) {
-                    variable.setValueForMode(collections.colors.modes[0].modeId, { r: color.r, g: color.g, b: color.b, a: color.a });
+                    variable.setValueForMode(collections.colors.modes[0].modeId, {
+                        r: color.r,
+                        g: color.g,
+                        b: color.b,
+                        a: color.a,
+                    });
                     variables[cssVar] = variable;
                 }
             }
-            else if (value.includes('px')) {
+            else if (value.includes("px")) {
                 const numValue = parseFloat(value);
                 if (!isNaN(numValue)) {
-                    const variable = figma.variables.createVariable(cleanName, collections.spacing, 'FLOAT');
+                    const variable = figma.variables.createVariable(cleanName, collections.spacing, "FLOAT");
                     variable.setValueForMode(collections.spacing.modes[0].modeId, numValue);
                     variables[cssVar] = variable;
                 }
@@ -798,20 +1184,25 @@ async function createFigmaVariables(tokens) {
         }
         // Process implicit tokens
         for (const [value, name] of Object.entries(tokens.implicit || {})) {
-            if (typeof name !== 'string' || typeof value !== 'string')
+            if (typeof name !== "string" || typeof value !== "string")
                 continue;
-            if (value.includes('rgb') || value.includes('#')) {
-                const variable = figma.variables.createVariable(name, collections.colors, 'COLOR');
+            if (value.includes("rgb") || value.includes("#")) {
+                const variable = figma.variables.createVariable(name, collections.colors, "COLOR");
                 const color = parseColor(value);
                 if (color) {
-                    variable.setValueForMode(collections.colors.modes[0].modeId, { r: color.r, g: color.g, b: color.b, a: color.a });
+                    variable.setValueForMode(collections.colors.modes[0].modeId, {
+                        r: color.r,
+                        g: color.g,
+                        b: color.b,
+                        a: color.a,
+                    });
                     variables[value] = variable;
                 }
             }
         }
     }
     catch (error) {
-        console.error('Variable creation failed:', error);
+        console.error("Variable creation failed:", error);
     }
     return variables;
 }

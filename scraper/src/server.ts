@@ -11,11 +11,12 @@
 
 import express from 'express';
 import cors from 'cors';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import net from 'net';
 import { extractBasic, extractHybrid, extractMaximum } from './scraper.js';
 import { StreamController } from './stream-controller.js';
-import type { IRNode } from '../../ir';
+import type { IRNode } from '../../ir.js';
 import fetch from 'node-fetch';
 
 const app = express();
@@ -178,6 +179,12 @@ const server = createServer(app);
 /**
  * WebSocket server for streaming large pages
  */
+function sendProgress(ws: WebSocket, payload: any) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'PROGRESS', payload }));
+  }
+}
+
 const wss = new WebSocketServer({
   server,
   path: '/ws',
@@ -191,6 +198,7 @@ wss.on('connection', (ws) => {
     try {
       const { url, mode = 'hybrid' } = JSON.parse(message.toString());
       console.log(`WebSocket: Extracting ${url} in ${mode} mode...`);
+      sendProgress(ws, { stage: 'capturing_page', url, mode });
       
       try {
         let data;
@@ -209,12 +217,18 @@ wss.on('connection', (ws) => {
         }
         
         console.log(`✓ Extraction complete: ${data.nodes.length} nodes`);
+        sendProgress(ws, { stage: 'scraping_dom', totalNodes: data.nodes.length });
 
         const nodesForStreaming: IRNode[] = data.nodes.map((node: IRNode) => ({
           ...node,
           screenshot: data.screenshots?.[node.id],
           states: data.states?.[node.id]
         }));
+        sendProgress(ws, {
+          stage: 'streaming_nodes',
+          current: 0,
+          total: nodesForStreaming.length
+        });
 
         const controller = new StreamController(ws);
         await controller.streamExtractedPage({
@@ -251,11 +265,39 @@ wss.on('connection', (ws) => {
 });
 
 /**
+ * Find an available port starting from a given port number
+ */
+function findAvailablePort(startPort: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    
+    server.listen(startPort, () => {
+      const port = (server.address() as net.AddressInfo)?.port;
+      server.close(() => resolve(port));
+    });
+    
+    server.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        findAvailablePort(startPort + 1).then(resolve, reject);
+      } else {
+        reject(err);
+      }
+    });
+  });
+}
+
+/**
  * Start server
  */
-const PORT = process.env.PORT || 3000;
+async function startServer() {
+  const preferredPort = parseInt(process.env.PORT || '3000', 10);
+  const PORT = await findAvailablePort(preferredPort);
+  
+  if (PORT !== preferredPort) {
+    console.log(`⚠️  Port ${preferredPort} was in use, using port ${PORT} instead`);
+  }
 
-server.listen(PORT, () => {
+  server.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -306,10 +348,14 @@ server.listen(PORT, () => {
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
-}).on('error', (err) => {
-  console.error('❌ Server failed to start:', err);
-  process.exit(1);
-});
+  }).on('error', (err) => {
+    console.error('❌ Server failed to start:', err);
+    process.exit(1);
+  });
+}
+
+// Start the server
+startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

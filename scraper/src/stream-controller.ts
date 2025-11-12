@@ -4,7 +4,7 @@ import type {
   IRNode,
   ImageChunkMessage,
   StreamMessage
-} from '../../ir';
+} from '../../ir.js';
 import { ImageProcessor } from './image-processor.js';
 import type { ProcessingStats } from './image-processor.js';
 import { CONFIG } from './config.js';
@@ -125,6 +125,16 @@ export class StreamController {
 
   private async streamNodes(nodes: IRNode[]): Promise<void> {
     const BATCH_SIZE = 50;
+    const totalNodes = nodes.length;
+    if (totalNodes === 0) {
+      return;
+    }
+
+    this.sendProgress({
+      stage: 'streaming_nodes',
+      current: 0,
+      total: totalNodes
+    });
 
     for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
       const batch = nodes.slice(i, i + BATCH_SIZE).map((node) => this.cloneForTransport(node));
@@ -137,6 +147,12 @@ export class StreamController {
 
       this.send(message);
       await this.sleep(50);
+      const current = Math.min(i + batch.length, totalNodes);
+      this.sendProgress({
+        stage: 'streaming_nodes',
+        current,
+        total: totalNodes
+      });
     }
   }
 

@@ -203,50 +203,292 @@
     .feature-list li {
       margin-bottom: 4px;
     }
+
+    /* Website Preview */
+    .preview-section {
+      display: none;
+      margin: 12px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #f9f9f9;
+    }
+
+    .preview-header {
+      padding: 8px;
+      background: #f0f0f0;
+      font-size: 10px;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .preview-container {
+      position: relative;
+      height: 120px;
+      overflow: hidden;
+      background: white;
+    }
+
+    .preview-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top left;
+    }
+
+    .preview-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #999;
+      font-size: 11px;
+      background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+    }
+
+    /* Scanner Animation */
+    .scanner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(0, 255, 100, 0.3) 20%, 
+        rgba(0, 255, 100, 0.8) 50%, 
+        rgba(0, 255, 100, 0.3) 80%, 
+        transparent 100%
+      );
+      box-shadow: 0 0 10px rgba(0, 255, 100, 0.6);
+      animation: scan 2s ease-in-out infinite;
+      display: none;
+    }
+
+    @keyframes scan {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(117px); }
+      100% { transform: translateY(0); }
+    }
+
+    .scanner.active {
+      display: block;
+    }
+
+    /* Terminal Log */
+    .terminal-section {
+      display: none;
+      margin: 12px 0;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background: #1a1a1a;
+      color: #00ff00;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 9px;
+      overflow: hidden;
+    }
+
+    .terminal-header {
+      padding: 6px 8px;
+      background: #2d2d2d;
+      color: #ccc;
+      border-bottom: 1px solid #444;
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 3px;
+    }
+
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27ca3f; }
+
+    .terminal-content {
+      height: 150px;
+      padding: 8px;
+      overflow-y: auto;
+      line-height: 1.3;
+      white-space: pre-wrap;
+    }
+
+    .terminal-content::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .terminal-content::-webkit-scrollbar-track {
+      background: #2d2d2d;
+    }
+
+    .terminal-content::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 2px;
+    }
+
+    .terminal-line {
+      margin-bottom: 2px;
+      animation: typewriter 0.5s ease-in;
+    }
+
+    .terminal-line-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .terminal-message {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .terminal-label {
+      border: 1px solid #444;
+      border-radius: 3px;
+      padding: 1px 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 8px;
+      color: #ccc;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .terminal-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-left: 16px;
+      margin-top: 2px;
+    }
+
+    .terminal-meta-item {
+      border: 1px solid #333;
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 8px;
+      color: #9fff9f;
+      background: rgba(0, 255, 0, 0.05);
+    }
+
+    .terminal-line .timestamp {
+      color: #888;
+      font-size: 9px;
+    }
+
+    .terminal-line.warning .terminal-meta-item {
+      color: #ffc97a;
+      border-color: #8a6d2f;
+      background: rgba(255, 166, 0, 0.08);
+    }
+
+    .terminal-line.error .terminal-meta-item {
+      color: #ff9f9f;
+      border-color: #a14a4a;
+      background: rgba(255, 0, 0, 0.08);
+    }
+
+    @keyframes typewriter {
+      from { opacity: 0; transform: translateX(-5px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .terminal-line.success { color: #00ff00; }
+    .terminal-line.info { color: #00bfff; }
+    .terminal-line.warning { color: #ffa500; }
+    .terminal-line.error { color: #ff6b6b; }
+    .terminal-line.timestamp { color: #888; }
+
+    /* Updated status section */
+    .status.enhanced {
+      padding: 6px 8px;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-icon {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 8px;
+      font-weight: bold;
+    }
+
+    .status.info .status-icon { background: #18a0fb; }
+    .status.success .status-icon { background: #27ca3f; }
+    .status.error .status-icon { background: #ff6b6b; }
   </style>
 </head>
 <body>
   <div class="container">
     <div>
       <h1>🎨 Web to Figma Converter</h1>
-      <div class="subtitle">Final Version - 95-100% Accuracy</div>
+      <div class="subtitle">Maximum Quality - 95-100% Accuracy</div>
     </div>
-    
+
     <div>
       <label for="url">Website URL</label>
-      <input 
-        type="url" 
-        id="url" 
-        placeholder="https://example.com" 
+      <input
+        type="url"
+        id="url"
+        placeholder="https://example.com"
         value="https://stripe.com"
       />
     </div>
-    
-    <div>
-      <label>Extraction Mode</label>
-      <div class="mode-selector">
-        <div class="mode-option" data-mode="basic">
-          <div>Basic</div>
-          <div class="mode-description">Fast</div>
-        </div>
-        <div class="mode-option selected" data-mode="hybrid">
-          <div>Hybrid ⭐</div>
-          <div class="mode-description">Balanced</div>
-        </div>
-        <div class="mode-option" data-mode="maximum">
-          <div>Maximum</div>
-          <div class="mode-description">Perfect</div>
-        </div>
-      </div>
-    </div>
-    
+
     <button id="import-btn">Import Website</button>
     
     <div class="progress-bar" id="progress-bar">
       <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
     
-    <div class="status" id="status"></div>
+    <div class="status enhanced" id="status">
+      <div class="status-icon" id="status-icon"></div>
+      <div class="status-text" id="status-text"></div>
+    </div>
+
+    <!-- Website Preview Section -->
+    <div class="preview-section" id="preview-section">
+      <div class="preview-header">
+        Website Preview
+      </div>
+      <div class="preview-container">
+        <div class="preview-placeholder" id="preview-placeholder">
+          Loading website preview...
+        </div>
+        <img class="preview-image" id="preview-image" style="display: none;">
+        <div class="scanner" id="scanner"></div>
+      </div>
+    </div>
+
+    <!-- Terminal Log Section -->
+    <div class="terminal-section" id="terminal-section">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+        </div>
+        <span>Extraction Log</span>
+      </div>
+      <div class="terminal-content" id="terminal-content"></div>
+    </div>
     
     <div class="examples">
       <div class="example-title">Quick Test Sites:</div>
@@ -272,22 +514,257 @@
     const urlInput = document.getElementById('url');
     const importBtn = document.getElementById('import-btn');
     const statusDiv = document.getElementById('status');
+    const statusIcon = document.getElementById('status-icon');
+    const statusText = document.getElementById('status-text');
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
-    const modeOptions = document.querySelectorAll('.mode-option');
     const exampleLinks = document.querySelectorAll('.example-link');
+
+    // Preview and terminal elements
+    const previewSection = document.getElementById('preview-section');
+    const previewImage = document.getElementById('preview-image');
+    const previewPlaceholder = document.getElementById('preview-placeholder');
+    const scanner = document.getElementById('scanner');
+    const terminalSection = document.getElementById('terminal-section');
+    const terminalContent = document.getElementById('terminal-content');
+
+    // Always use maximum quality mode
+    const selectedMode = 'maximum';
+    const timelineStats = {
+      startTime: null,
+      nodesProcessed: 0,
+      imagesAssembled: 0
+    };
+    const stageLabels = {
+      capturing_page: 'Capturing Page',
+      scraping_dom: 'Scraping DOM',
+      streaming_nodes: 'Streaming Nodes',
+      processing_images: 'Processing Images',
+      streaming_images: 'Streaming Images'
+    };
     
-    let selectedMode = 'hybrid';
-    
-    // Mode selection
-    modeOptions.forEach(option => {
-      option.addEventListener('click', () => {
-        modeOptions.forEach(o => o.classList.remove('selected'));
-        option.classList.add('selected');
-        selectedMode = option.dataset.mode;
+    // Terminal logging functionality
+    function resetTimelineStats() {
+      timelineStats.startTime = null;
+      timelineStats.nodesProcessed = 0;
+      timelineStats.imagesAssembled = 0;
+    }
+
+    function beginTimelineSession() {
+      resetTimelineStats();
+      timelineStats.startTime = Date.now();
+    }
+
+    function formatDuration(ms) {
+      if (!ms || ms < 0) return '0.0s';
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      const tenths = Math.floor((ms % 1000) / 100);
+      if (minutes > 0) {
+        return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+      }
+      return `${seconds}.${tenths}s`;
+    }
+
+    function getElapsedSinceStart() {
+      if (!timelineStats.startTime) return null;
+      return formatDuration(Date.now() - timelineStats.startTime);
+    }
+
+    function addTerminalLog(message, type = 'info', options = {}) {
+      const { meta = null, label = null } = options;
+      const timestamp = new Date().toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
       });
-    });
+      
+      const line = document.createElement('div');
+      line.className = `terminal-line ${type}`;
+      const header = document.createElement('div');
+      header.className = 'terminal-line-header';
+
+      const timestampSpan = document.createElement('span');
+      timestampSpan.className = 'timestamp';
+      timestampSpan.textContent = `[${timestamp}]`;
+      header.appendChild(timestampSpan);
+
+      if (label) {
+        const badge = document.createElement('span');
+        badge.className = 'terminal-label';
+        badge.textContent = label;
+        header.appendChild(badge);
+      }
+
+      const messageSpan = document.createElement('span');
+      messageSpan.className = 'terminal-message';
+      messageSpan.textContent = message;
+      header.appendChild(messageSpan);
+
+      line.appendChild(header);
+
+      if (meta && Object.keys(meta).length > 0) {
+        const metaRow = document.createElement('div');
+        metaRow.className = 'terminal-meta';
+
+        Object.entries(meta).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') return;
+          const metaItem = document.createElement('span');
+          metaItem.className = 'terminal-meta-item';
+          metaItem.textContent = `${key}: ${value}`;
+          metaRow.appendChild(metaItem);
+        });
+
+        if (metaRow.children.length > 0) {
+          line.appendChild(metaRow);
+        }
+      }
+      
+      terminalContent.appendChild(line);
+      terminalContent.scrollTop = terminalContent.scrollHeight;
+    }
     
+    function clearTerminal() {
+      terminalContent.innerHTML = '';
+      resetTimelineStats();
+    }
+    
+    function handleRuntimeProgress(payload = {}) {
+      const hasUsefulInfo =
+        payload.stage ||
+        typeof payload.nodesProcessed === 'number' ||
+        typeof payload.current === 'number' ||
+        typeof payload.total === 'number';
+
+      if (!hasUsefulInfo) {
+        return;
+      }
+
+      const meta = {};
+      let logType = 'info';
+      let message = 'Figma runtime reported progress';
+
+      if (payload.stage) {
+        const stageName = stageLabels[payload.stage] || payload.stage;
+        meta.Stage = stageName;
+
+        if (typeof payload.current === 'number' && typeof payload.total === 'number') {
+          meta.Batch = `${payload.current}/${payload.total}`;
+        }
+
+        message =
+          payload.stage === 'processing_images'
+            ? 'Plugin is processing captured image buffers'
+            : payload.stage === 'streaming_images'
+              ? 'Plugin is streaming image chunks into Figma'
+              : `Plugin stage: ${stageName}`;
+      }
+
+      if (typeof payload.nodesProcessed === 'number') {
+        timelineStats.nodesProcessed = payload.nodesProcessed;
+        meta['Nodes created'] = payload.nodesProcessed.toLocaleString();
+        message = `Figma created ${payload.nodesProcessed.toLocaleString()} nodes`;
+        logType = 'success';
+      }
+
+      const elapsed = getElapsedSinceStart();
+      if (elapsed) {
+        meta.Elapsed = elapsed;
+      }
+
+      addTerminalLog(message, logType, {
+        meta,
+        label: 'Figma Runtime'
+      });
+    }
+
+    function handleImageAssembled(data = {}) {
+      if (typeof data.nodesProcessed === 'number') {
+        timelineStats.nodesProcessed = data.nodesProcessed;
+      }
+
+      timelineStats.imagesAssembled += 1;
+      const meta = {
+        Node: data.nodeId || 'unknown',
+        'Images assembled': timelineStats.imagesAssembled.toString(),
+        'Nodes created':
+          timelineStats.nodesProcessed > 0
+            ? timelineStats.nodesProcessed.toLocaleString()
+            : undefined
+      };
+
+      const elapsed = getElapsedSinceStart();
+      if (elapsed) {
+        meta.Elapsed = elapsed;
+      }
+
+      addTerminalLog('Image node assembled inside Figma runtime', 'success', {
+        meta,
+        label: 'Image Stream'
+      });
+    }
+
+    function logImportCompletion() {
+      const meta = {
+        'Nodes created':
+          timelineStats.nodesProcessed > 0
+            ? timelineStats.nodesProcessed.toLocaleString()
+            : '—'
+      };
+
+      if (timelineStats.imagesAssembled > 0) {
+        meta['Images assembled'] = timelineStats.imagesAssembled.toString();
+      }
+
+      const elapsed = getElapsedSinceStart();
+      if (elapsed) {
+        meta.Elapsed = elapsed;
+      }
+
+      addTerminalLog('Figma runtime finished creating nodes', 'success', {
+        meta,
+        label: 'Figma Runtime'
+      });
+    }
+    
+    function showPreview(url) {
+      previewSection.style.display = 'block';
+      terminalSection.style.display = 'block';
+      
+      // Start scanner animation
+      scanner.classList.add('active');
+      
+      // Load website preview screenshot
+      setTimeout(async () => {
+        try {
+          const serverPort = await discoverServerPort();
+          const screenshotUrl = `http://localhost:${serverPort}/screenshot?url=${encodeURIComponent(url)}`;
+          const response = await fetch(screenshotUrl);
+          const data = await response.json();
+          
+          if (data.screenshot) {
+            previewImage.src = data.screenshot;
+            previewImage.style.display = 'block';
+            previewPlaceholder.style.display = 'none';
+            addTerminalLog('✓ Website preview captured', 'success');
+          }
+        } catch (error) {
+          addTerminalLog(`⚠ Preview capture failed: ${error.message}`, 'warning');
+        }
+      }, 1000);
+    }
+    
+    function hidePreview() {
+      previewSection.style.display = 'none';
+      terminalSection.style.display = 'none';
+      scanner.classList.remove('active');
+      previewImage.style.display = 'none';
+      previewPlaceholder.style.display = 'flex';
+      clearTerminal();
+    }
+
     // Example link clicks
     exampleLinks.forEach(link => {
       link.addEventListener('click', (e) => {
@@ -296,6 +773,28 @@
       });
     });
     
+    // Discover server port
+    async function discoverServerPort() {
+      const possiblePorts = [3001, 3000, 3002, 3003, 3004]; // Try 3001 first
+      
+      for (const port of possiblePorts) {
+        try {
+          const response = await fetch(`http://localhost:${port}/health`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(1000)
+          });
+          
+          if (response.ok) {
+            return port;
+          }
+        } catch (e) {
+          // Port not available, try next
+        }
+      }
+      
+      throw new Error('No running server found on ports 3000-3004');
+    }
+
     // Import button
     importBtn.addEventListener('click', async () => {
       const url = urlInput.value.trim();
@@ -314,53 +813,111 @@
       importBtn.textContent = 'Importing...';
       progressBar.style.display = 'block';
       progressFill.style.width = '0%';
-      showStatus('Connecting to scraper...', 'info');
+      
+      // Show preview and terminal
+      clearTerminal();
+      beginTimelineSession();
+      showPreview(url);
+      
+      addTerminalLog('🚀 Starting web-to-figma conversion (Maximum Quality)', 'info');
+      addTerminalLog(`📄 Target URL: ${url}`, 'info');
+      
+      showStatus('Discovering server...', 'info');
+      
+      let serverPort;
+      try {
+        serverPort = await discoverServerPort();
+        showStatus(`Connected to server on port ${serverPort}`, 'info');
+      } catch (error) {
+        showStatus('Server not found. Please start the scraper server first.', 'error');
+        importBtn.disabled = false;
+        importBtn.textContent = 'Import Website';
+        progressBar.style.display = 'none';
+        return;
+      }
       
       // Connect via WebSocket
       try {
-        const ws = new WebSocket('ws://localhost:3000/ws');
+        const ws = new WebSocket(`ws://localhost:${serverPort}/ws`);
         
         ws.onopen = () => {
-          showStatus(`Extracting ${url} in ${selectedMode} mode...`, 'info');
+          showStatus(`Extracting ${url} (maximum quality)...`, 'info');
           progressFill.style.width = '10%';
+          // Send server port info to plugin
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'server_config', 
+              serverPort: serverPort 
+            } 
+          }, '*');
           ws.send(JSON.stringify({ url, mode: selectedMode }));
         };
         
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data);
-          
+
+          const forward = () => {
+            parent.postMessage({ pluginMessage: message }, '*');
+          };
+
           switch (message.type) {
-            case 'full_page':
-              progressFill.style.width = '90%';
-              parent.postMessage({ 
-                pluginMessage: { type: 'full_page', data: message.data } 
-              }, '*');
-              break;
-              
-            case 'tokens':
+            case 'TOKENS':
               progressFill.style.width = '20%';
-              parent.postMessage({ 
-                pluginMessage: { type: 'tokens', data: message.data } 
-              }, '*');
+              showStatus('Creating tokens...', 'info');
+              forward();
               break;
-              
-            case 'node_chunk':
-              if (message.progress) {
-                const percent = (message.progress.current / message.progress.total * 70) + 20;
+
+            case 'FONTS':
+              progressFill.style.width = '30%';
+              showStatus(`Loading fonts (${message.payload?.length || 0})`, 'info');
+              forward();
+              break;
+
+            case 'NODES':
+              showStatus('Streaming nodes...', 'info');
+              forward();
+              break;
+
+            case 'IMAGE_CHUNK':
+              showStatus('Receiving large image data...', 'info');
+              forward();
+              break;
+
+            case 'PROGRESS':
+              const stage = message.payload?.stage;
+              if (stage === 'capturing_page') {
+                progressFill.style.width = '5%';
+                showStatus(`Capturing ${url}...`, 'info');
+              } else if (stage === 'scraping_dom') {
+                progressFill.style.width = '15%';
+                showStatus('Scraping DOM structure...', 'info');
+              } else if (stage === 'streaming_nodes') {
+                const nodesCurrent = message.payload?.current || 0;
+                const nodesTotal = message.payload?.total || 0;
+                const dynamic = nodesTotal
+                  ? Math.min(30, Math.round((nodesCurrent / nodesTotal) * 30))
+                  : 0;
+                const percent = 25 + dynamic;
                 progressFill.style.width = percent + '%';
-                showStatus(
-                  `Importing nodes: ${message.progress.current}/${message.progress.total}`, 
-                  'info'
-                );
+              } else if (stage === 'processing_images') {
+                const percent = 30 + Math.min(40, Math.round((message.payload.current / message.payload.total) * 40));
+                progressFill.style.width = percent + '%';
+                showStatus(`Processing images ${message.payload.current}/${message.payload.total}`, 'info');
+              } else if (stage === 'streaming_images') {
+                const percent = 70 + Math.min(20, Math.round((message.payload.current / message.payload.total) * 20));
+                progressFill.style.width = percent + '%';
+                showStatus(`Streaming images ${message.payload.current}/${message.payload.total}`, 'info');
+              } else if (typeof message.payload?.nodesProcessed === 'number') {
+                const percent = Math.min(95, 50 + Math.round(message.payload.nodesProcessed));
+                progressFill.style.width = percent + '%';
               }
-              parent.postMessage({ 
-                pluginMessage: { type: 'node_chunk', data: message.data } 
-              }, '*');
+              forward();
               break;
-              
-            case 'complete':
+
+            case 'COMPLETE':
               progressFill.style.width = '100%';
               showStatus('✓ Import complete!', 'success');
+              forward();
               setTimeout(() => {
                 importBtn.disabled = false;
                 importBtn.textContent = 'Import Website';
@@ -368,13 +925,48 @@
               }, 2000);
               ws.close();
               break;
-              
-            case 'error':
-              showStatus('Error: ' + message.error, 'error');
+
+            case 'ERROR':
+              showStatus('Error: ' + (message.payload?.message || message.error || 'Unknown error'), 'error');
+              forward();
               importBtn.disabled = false;
               importBtn.textContent = 'Import Website';
               progressBar.style.display = 'none';
               ws.close();
+              break;
+
+            case 'full_page':
+            case 'tokens':
+            case 'node_chunk':
+            case 'complete':
+            case 'error':
+              forward();
+              if (message.type === 'node_chunk' && message.progress) {
+                const percent = (message.progress.current / message.progress.total * 70) + 20;
+                progressFill.style.width = percent + '%';
+                showStatus(`Importing nodes: ${message.progress.current}/${message.progress.total}`, 'info');
+              }
+              if (message.type === 'complete') {
+                progressFill.style.width = '100%';
+                showStatus('✓ Import complete!', 'success');
+                setTimeout(() => {
+                  importBtn.disabled = false;
+                  importBtn.textContent = 'Import Website';
+                  progressBar.style.display = 'none';
+                }, 2000);
+                ws.close();
+              }
+              if (message.type === 'error') {
+                showStatus('Error: ' + message.error, 'error');
+                importBtn.disabled = false;
+                importBtn.textContent = 'Import Website';
+                progressBar.style.display = 'none';
+                ws.close();
+              }
+              break;
+
+            default:
+              forward();
               break;
           }
         };
@@ -404,16 +996,40 @@
     });
     
     function showStatus(message, type) {
-      statusDiv.textContent = message;
-      statusDiv.className = 'status ' + type;
-      statusDiv.style.display = 'block';
+      statusText.textContent = message;
+      statusDiv.className = `status enhanced ${type}`;
+      statusDiv.style.display = 'flex';
+      
+      // Update status icon
+      const icons = { info: 'i', success: '✓', error: '✗', warning: '⚠' };
+      statusIcon.textContent = icons[type] || 'i';
+      
+      // Add to terminal log
+      if (terminalSection.style.display === 'block') {
+        addTerminalLog(message, type);
+      }
     }
     
     // Listen for messages from plugin
     window.onmessage = (event) => {
-      const message = event.data.pluginMessage;
-      if (message.type === 'import_complete') {
-        showStatus('✓ All nodes created in Figma!', 'success');
+      const message = event.data?.pluginMessage;
+      if (!message || !message.type) {
+        return;
+      }
+
+      switch (message.type) {
+        case 'import_complete':
+          showStatus('✓ All nodes created in Figma!', 'success');
+          logImportCompletion();
+          break;
+        case 'PROGRESS_UPDATE':
+          handleRuntimeProgress(message);
+          break;
+        case 'IMAGE_ASSEMBLED':
+          handleImageAssembled(message);
+          break;
+        default:
+          break;
       }
     };
   </script>

@@ -4,9 +4,12 @@
   "description": "Final Figma plugin for web-to-Figma conversion",
   "main": "dist/code.js",
   "scripts": {
-    "build": "tsc --project plugin-tsconfig.json && npm run build:ui",
-    "build:ui": "cp src/ui.html dist/ui.html",
-    "watch": "tsc --project plugin-tsconfig.json --watch"
+    "build": "npm run clean && tsc --project plugin-tsconfig.json && npm run build:assets",
+    "build:assets": "cp src/ui.html dist/ui.html 2>/dev/null || echo 'No ui.html found'",
+    "clean": "rm -rf dist && mkdir -p dist",
+    "watch": "tsc --project plugin-tsconfig.json --watch",
+    "validate": "node scripts/validate-build.js",
+    "dev": "npm run build && npm run watch"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.90.0",

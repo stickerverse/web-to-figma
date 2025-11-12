@@ -9,8 +9,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["@figma/plugin-typings"]
+    "moduleResolution": "node"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/code.ts", "src/ui.html"],
+  "exclude": ["node_modules", "dist", "src/builder"]
 }

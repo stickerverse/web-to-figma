@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import sharp from 'sharp';
-import type { IRNode, ImageSource } from '../../ir';
+import type { IRNode, ImageSource } from '../../ir.js';
 import { CONFIG } from './config.js';
 
 const MAX_IMAGE_DIMENSION = 4096; // Figma hard limit
