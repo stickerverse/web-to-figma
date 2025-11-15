@@ -1,13 +1,22 @@
 #!/bin/bash
 
 # Web-to-Figma Scraper Startup Script
+set -euo pipefail
+
 echo "==================== WEB-TO-FIGMA SCRAPER ===================="
 echo ""
 echo "Starting scraper server with comprehensive logging..."
 echo ""
 
-# Navigate to scraper directory
-cd /Users/skirk92/projects/web/scraper
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRAPER_DIR="${SCRIPT_DIR}/scraper"
+
+if [ ! -d "${SCRAPER_DIR}" ]; then
+  echo "❌ Could not find scraper directory at ${SCRAPER_DIR}" >&2
+  exit 1
+fi
+
+cd "${SCRAPER_DIR}"
 
 # Check if node_modules exists
 if [ ! -d "node_modules" ]; then
@@ -18,11 +27,6 @@ fi
 # Build the project
 echo "📦 Building TypeScript..."
 npm run build
-
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed! Fix TypeScript errors before starting."
-  exit 1
-fi
 
 echo "✅ Build successful!"
 echo ""
