@@ -508,9 +508,14 @@ function mapBlendMode(value) {
 }
 function applyNodeTransform(node, nodeData) {
     var _a, _b, _c;
-    const transformString = ((_b = (_a = nodeData === null || nodeData === void 0 ? void 0 : nodeData.layout) === null || _a === void 0 ? void 0 : _a.transform) === null || _b === void 0 ? void 0 : _b.matrix) || ((_c = nodeData === null || nodeData === void 0 ? void 0 : nodeData.styles) === null || _c === void 0 ? void 0 : _c.transform);
+    let transformString = ((_b = (_a = nodeData === null || nodeData === void 0 ? void 0 : nodeData.layout) === null || _a === void 0 ? void 0 : _a.transform) === null || _b === void 0 ? void 0 : _b.matrix) || ((_c = nodeData === null || nodeData === void 0 ? void 0 : nodeData.styles) === null || _c === void 0 ? void 0 : _c.transform);
+    // Ensure transformString is actually a string
     if (!transformString || transformString === "none")
         return;
+    if (typeof transformString !== 'string') {
+        console.warn(`Transform is not a string for node ${nodeData.id}:`, transformString);
+        return;
+    }
     try {
         const matrixValues = parseMatrix(transformString);
         if (matrixValues) {
@@ -1607,14 +1612,33 @@ function parseColor(color) {
     return null;
 }
 /**
+ * Fix font style spacing for Figma
+ * Figma uses styles like "SemiBold" (no space), not "Semi Bold"
+ */
+function fixFontStyleSpacing(style) {
+    // Remove spaces from style names (e.g., "Semi Bold" -> "SemiBold")
+    const normalized = style.replace(/\s+/g, '');
+    // Common mappings
+    const styleMap = {
+        'semibold': 'SemiBold',
+        'extrabold': 'ExtraBold',
+        'extralight': 'ExtraLight',
+        'semilight': 'SemiLight',
+    };
+    const lower = normalized.toLowerCase();
+    return styleMap[lower] || normalized;
+}
+/**
  * Ensure font is loaded
  */
 async function ensureFontLoaded(family, style) {
-    const key = `${family}__${style}`;
+    // Fix spacing in style name
+    const fixedStyle = fixFontStyleSpacing(style);
+    const key = `${family}__${fixedStyle}`;
     if (loadedFonts.has(key))
         return;
     try {
-        await figma.loadFontAsync({ family, style });
+        await figma.loadFontAsync({ family, style: fixedStyle });
         loadedFonts.add(key);
     }
     catch (e) {

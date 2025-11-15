@@ -704,9 +704,15 @@ function mapBlendMode(value?: string): BlendMode | null {
 }
 
 function applyNodeTransform(node: SceneNode, nodeData: any) {
-  const transformString =
+  let transformString =
     nodeData?.layout?.transform?.matrix || nodeData?.styles?.transform;
+
+  // Ensure transformString is actually a string
   if (!transformString || transformString === "none") return;
+  if (typeof transformString !== 'string') {
+    console.warn(`Transform is not a string for node ${nodeData.id}:`, transformString);
+    return;
+  }
 
   try {
     const matrixValues = parseMatrix(transformString);
@@ -2014,14 +2020,36 @@ function parseColor(
 }
 
 /**
+ * Fix font style spacing for Figma
+ * Figma uses styles like "SemiBold" (no space), not "Semi Bold"
+ */
+function fixFontStyleSpacing(style: string): string {
+  // Remove spaces from style names (e.g., "Semi Bold" -> "SemiBold")
+  const normalized = style.replace(/\s+/g, '');
+
+  // Common mappings
+  const styleMap: Record<string, string> = {
+    'semibold': 'SemiBold',
+    'extrabold': 'ExtraBold',
+    'extralight': 'ExtraLight',
+    'semilight': 'SemiLight',
+  };
+
+  const lower = normalized.toLowerCase();
+  return styleMap[lower] || normalized;
+}
+
+/**
  * Ensure font is loaded
  */
 async function ensureFontLoaded(family: string, style: string) {
-  const key = `${family}__${style}`;
+  // Fix spacing in style name
+  const fixedStyle = fixFontStyleSpacing(style);
+  const key = `${family}__${fixedStyle}`;
   if (loadedFonts.has(key)) return;
 
   try {
-    await figma.loadFontAsync({ family, style });
+    await figma.loadFontAsync({ family, style: fixedStyle });
     loadedFonts.add(key);
   } catch (e) {
     try {
