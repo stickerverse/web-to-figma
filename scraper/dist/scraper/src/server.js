@@ -16,6 +16,8 @@ import net from 'net';
 import { extractBasic, extractHybrid, extractMaximum } from './scraper.js';
 import { StreamController } from './stream-controller.js';
 import fetch from 'node-fetch';
+import { ProgressTracker, CircularProgressBar } from './progress-tracker.js';
+import { logger } from './logger.js';
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -47,7 +49,8 @@ app.get('/proxy-image', async (req, res) => {
         if (!response.ok) {
             throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
         }
-        const buffer = await response.buffer();
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
         const contentType = response.headers.get('content-type') || 'image/png';
         res.set('Content-Type', contentType);
         res.set('Cache-Control', 'public, max-age=86400'); // Cache 1 day
@@ -77,10 +80,10 @@ app.get('/health', (req, res) => {
     });
 });
 /**
- * Full page screenshot endpoint
+ * Full page screenshot endpoint with DPR support
  */
 app.get('/screenshot', async (req, res) => {
-    const { url } = req.query;
+    const { url, dpr } = req.query;
     if (!url || typeof url !== 'string') {
         return res.status(400).json({ error: 'URL parameter required' });
     }
@@ -90,20 +93,38 @@ app.get('/screenshot', async (req, res) => {
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
+        // Parse DPR parameter or default to 2
+        const devicePixelRatio = dpr && !isNaN(Number(dpr)) ? Math.max(Number(dpr), 1) : 2;
         const page = await browser.newPage({
-            viewport: { width: 1280, height: 720 }
+            viewport: { width: 1280, height: 720 },
+            deviceScaleFactor: devicePixelRatio
         });
         await page.goto(url, {
-            waitUntil: 'networkidle',
-            timeout: 30000
+            waitUntil: 'load',
+            timeout: 60000
         });
         const screenshot = await page.screenshot({
             type: 'png',
-            fullPage: false
+            fullPage: false,
+            scale: devicePixelRatio > 1 ? 'device' : 'css'
         });
         await browser.close();
         const base64 = screenshot.toString('base64');
-        res.json({ screenshot: `data:image/png;base64,${base64}` });
+        // Calculate dimensions for metadata
+        const width = 1280;
+        const height = 720;
+        const actualWidth = Math.round(width * devicePixelRatio);
+        const actualHeight = Math.round(height * devicePixelRatio);
+        res.json({
+            screenshot: {
+                src: `data:image/png;base64,${base64}`,
+                width,
+                height,
+                dpr: devicePixelRatio,
+                actualWidth,
+                actualHeight
+            }
+        });
     }
     catch (error) {
         console.error('Screenshot error:', error.message);
@@ -124,6 +145,12 @@ app.post('/scrape', async (req, res) => {
     console.log(`Scraping ${url} in ${mode} mode...`);
     try {
         let data;
+        // Console progress tracker for HTTP requests
+        const progressTracker = new ProgressTracker((update) => {
+            const progressLine = CircularProgressBar.renderDetailed(update);
+            process.stdout.write('\r' + ' '.repeat(80) + '\r' + progressLine);
+        });
+        progressTracker.setTotalPhases(10);
         switch (mode) {
             case 'basic':
                 data = await extractBasic(url);
@@ -136,10 +163,12 @@ app.post('/scrape', async (req, res) => {
                 data = await extractHybrid(url);
                 break;
         }
-        console.log(`✓ Extraction complete: ${data.nodes.length} nodes, ${data.fonts.length} fonts, ${Object.keys(data.screenshots).length} screenshots`);
+        process.stdout.write('\n'); // New line after progress
+        console.log(`✓ Extraction complete: ${data.nodes.length} nodes, ${data.assets.fonts.length} fonts, ${Object.keys(data.assets.images).length} images`);
         res.json(data);
     }
     catch (error) {
+        process.stdout.write('\n'); // Ensure clean line on error
         console.error('Scrape error:', error.message);
         res.status(500).json({
             error: 'Extraction failed',
@@ -166,11 +195,64 @@ const wss = new WebSocketServer({
 });
 wss.on('connection', (ws) => {
     console.log('✓ WebSocket connection established');
+    // Setup logger callback to send logs to UI
+    logger.setCallback((log) => {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'LOG',
+                payload: log
+            }));
+        }
+    });
     ws.on('message', async (message) => {
+        let keepAliveInterval = null;
+        const stopKeepAlive = () => {
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+                keepAliveInterval = null;
+            }
+        };
+        const startKeepAlive = () => {
+            stopKeepAlive();
+            keepAliveInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    sendProgress(ws, {
+                        stage: 'heartbeat',
+                        phase: 'heartbeat',
+                        current: 0,
+                        total: 0,
+                        percentage: 0,
+                        message: 'Extraction in progress...',
+                        timeElapsed: undefined,
+                        timeRemaining: undefined,
+                    });
+                }
+                else {
+                    stopKeepAlive();
+                }
+            }, 5000);
+        };
         try {
             const { url, mode = 'hybrid' } = JSON.parse(message.toString());
             console.log(`WebSocket: Extracting ${url} in ${mode} mode...`);
-            sendProgress(ws, { stage: 'capturing_page', url, mode });
+            // Initialize progress tracker
+            const progressTracker = new ProgressTracker((update) => {
+                sendProgress(ws, {
+                    stage: update.stage,
+                    phase: update.phase,
+                    current: update.current,
+                    total: update.total,
+                    percentage: update.percentage,
+                    message: update.message,
+                    timeElapsed: update.timeElapsed,
+                    timeRemaining: update.timeRemaining,
+                    url,
+                    mode
+                });
+            });
+            progressTracker.setTotalPhases(10); // Phases 0.5 through 10
+            progressTracker.startPhase('Phase 0.5', 'Initializing page capture...');
+            startKeepAlive();
             try {
                 let data;
                 switch (mode) {
@@ -186,23 +268,18 @@ wss.on('connection', (ws) => {
                         break;
                 }
                 console.log(`✓ Extraction complete: ${data.nodes.length} nodes`);
-                sendProgress(ws, { stage: 'scraping_dom', totalNodes: data.nodes.length });
-                const nodesForStreaming = data.nodes.map((node) => ({
-                    ...node,
-                    screenshot: data.screenshots?.[node.id],
-                    states: data.states?.[node.id]
-                }));
-                sendProgress(ws, {
-                    stage: 'streaming_nodes',
-                    current: 0,
-                    total: nodesForStreaming.length
-                });
+                progressTracker.startPhase('Phase 10', 'Preparing data for streaming...');
+                const nodesForStreaming = data.nodes;
+                progressTracker.updateStage('streaming_setup', 0, nodesForStreaming.length, 'Setting up streaming...');
                 const controller = new StreamController(ws);
                 await controller.streamExtractedPage({
                     nodes: nodesForStreaming,
-                    fonts: data.fonts,
-                    tokens: data.tokens
+                    fonts: data.assets.fonts,
+                    tokens: data.tokens,
+                    stackingContexts: [],
+                    paintOrder: []
                 });
+                progressTracker.completePhase();
                 console.log('✓ WebSocket extraction complete');
             }
             catch (extractError) {
@@ -219,6 +296,9 @@ wss.on('connection', (ws) => {
                 type: 'error',
                 error: 'Invalid message format'
             }));
+        }
+        finally {
+            stopKeepAlive();
         }
     });
     ws.on('close', () => {
@@ -253,7 +333,21 @@ function findAvailablePort(startPort) {
  */
 async function startServer() {
     const preferredPort = parseInt(process.env.PORT || '3000', 10);
-    const PORT = await findAvailablePort(preferredPort);
+    let PORT;
+    try {
+        PORT = await findAvailablePort(preferredPort);
+    }
+    catch (error) {
+        if (error?.code === 'EPERM') {
+            console.error(`❌ Permission denied while trying to bind to port ${preferredPort}. ` +
+                `Try running with elevated privileges or choose a different port via the PORT environment variable.`);
+            console.error('Hint: PORT=3100 npm start');
+        }
+        else {
+            console.error('❌ Failed to find an available port:', error?.message || error);
+        }
+        process.exit(1);
+    }
     if (PORT !== preferredPort) {
         console.log(`⚠️  Port ${preferredPort} was in use, using port ${PORT} instead`);
     }
@@ -273,11 +367,9 @@ async function startServer() {
 ║                                                           ║
 ╟───────────────────────────────────────────────────────────╢
 ║                                                           ║
-║  📋 EXTRACTION MODES:                                     ║
+║  📋 EXTRACTION MODE:                                      ║
 ║                                                           ║
-║  • basic    - Fast, no fonts/screenshots (65-75%)        ║
-║  • hybrid   - Balanced, recommended (85-95%)  ⭐         ║
-║  • maximum  - Full quality (95-100%)                     ║
+║  • maximum  - Full quality (includes all phases)         ║
 ║                                                           ║
 ╟───────────────────────────────────────────────────────────╢
 ║                                                           ║
@@ -293,14 +385,14 @@ async function startServer() {
 ║  📡 ENDPOINTS:                                            ║
 ║                                                           ║
 ║  POST /scrape                                             ║
-║    Body: { "url": "...", "mode": "hybrid" }              ║
+║    Body: { "url": "..." }                                ║
 ║                                                           ║
 ║  GET  /proxy-image?url=IMAGE_URL                         ║
-║  GET  /screenshot?url=PAGE_URL                           ║
+║  GET  /screenshot?url=PAGE_URL&dpr=2                     ║
 ║  GET  /health                                             ║
 ║                                                           ║
 ║  WS   /ws                                                 ║
-║    Send: { "url": "...", "mode": "hybrid" }              ║
+║    Send: { "url": "..." }                                ║
 ║                                                           ║
 ╟───────────────────────────────────────────────────────────╢
 ║                                                           ║

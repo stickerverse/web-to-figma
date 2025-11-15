@@ -10,7 +10,7 @@ export class StreamController {
         this.ws = ws;
     }
     async streamExtractedPage(payload) {
-        const { nodes, fonts = [], tokens } = payload;
+        const { nodes, fonts = [], tokens, stackingContexts, paintOrder } = payload;
         try {
             this.totalNodes = nodes.length;
             this.attachImageSources(nodes);
@@ -26,6 +26,22 @@ export class StreamController {
                 this.send({
                     type: 'FONTS',
                     payload: fonts,
+                    sequenceNumber: this.sequenceNumber++
+                });
+            }
+            // Send stacking contexts if available
+            if (stackingContexts && stackingContexts.length > 0) {
+                this.send({
+                    type: 'STACKING_CONTEXTS',
+                    payload: stackingContexts,
+                    sequenceNumber: this.sequenceNumber++
+                });
+            }
+            // Send paint order if available
+            if (paintOrder && paintOrder.length > 0) {
+                this.send({
+                    type: 'PAINT_ORDER',
+                    payload: paintOrder,
                     sequenceNumber: this.sequenceNumber++
                 });
             }

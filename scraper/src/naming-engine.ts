@@ -1,11 +1,3 @@
-/**
- * Developer-Friendly Node Naming Engine
- * 
- * Generates semantic, hierarchical names optimized for developer workflows.
- * Supports camelCase naming conventions, text hints for interactive elements,
- * sibling differentiation, component pattern detection, and ARIA role mapping.
- */
-
 export interface NodeInfo {
   tagName: string;
   className?: string;
@@ -50,11 +42,18 @@ export class DeveloperNamingEngine {
   /**
    * Generate a developer-friendly name for a node
    */
-  public generateName(nodeInfo: NodeInfo, context: NamingContext = this.createDefaultContext()): string {
+  public generateName(
+    nodeInfo: NodeInfo,
+    context: NamingContext = this.createDefaultContext()
+  ): string {
     const baseName = this.generateBaseName(nodeInfo);
-    const contextualName = this.addContextualPrefix(baseName, nodeInfo, context);
+    const contextualName = this.addContextualPrefix(
+      baseName,
+      nodeInfo,
+      context
+    );
     const uniqueName = this.ensureUniqueness(contextualName, context);
-    
+
     return this.toCamelCase(uniqueName);
   }
 
@@ -65,18 +64,21 @@ export class DeveloperNamingEngine {
     return {
       ancestorNames: [],
       usedNames: new Set<string>(),
-      componentScope: 'page'
+      componentScope: "page",
     };
   }
 
   /**
    * Update context with a new scope
    */
-  public createScopedContext(parentContext: NamingContext, scopeName: string): NamingContext {
+  public createScopedContext(
+    parentContext: NamingContext,
+    scopeName: string
+  ): NamingContext {
     return {
       ancestorNames: [...parentContext.ancestorNames, scopeName],
       usedNames: new Set<string>(),
-      componentScope: scopeName
+      componentScope: scopeName,
     };
   }
 
@@ -94,7 +96,7 @@ export class DeveloperNamingEngine {
       () => this.getClassBasedName(nodeInfo),
       () => this.getContentBasedName(nodeInfo),
       () => this.getAttributeBasedName(nodeInfo),
-      () => this.getFallbackName(nodeInfo)
+      () => this.getFallbackName(nodeInfo),
     ];
 
     for (const source of namingSources) {
@@ -102,7 +104,7 @@ export class DeveloperNamingEngine {
       if (name) return name;
     }
 
-    return 'element';
+    return "element";
   }
 
   /**
@@ -111,13 +113,15 @@ export class DeveloperNamingEngine {
   private getAriaBasedName(nodeInfo: NodeInfo): string | null {
     if (nodeInfo.role && this.ariaRoleMap.has(nodeInfo.role)) {
       const mappedName = this.ariaRoleMap.get(nodeInfo.role)!;
-      
+
       // Add text hint for labeled elements
       if (nodeInfo.ariaLabel) {
         const textHint = this.extractTextHint(nodeInfo.ariaLabel);
-        return textHint ? `${textHint}${this.capitalize(mappedName)}` : mappedName;
+        return textHint
+          ? `${textHint}${this.capitalize(mappedName)}`
+          : mappedName;
       }
-      
+
       return mappedName;
     }
 
@@ -153,8 +157,8 @@ export class DeveloperNamingEngine {
    * Detect component patterns and generate appropriate names
    */
   private getComponentPatternName(nodeInfo: NodeInfo): string | null {
-    const classNames = nodeInfo.className || '';
-    
+    const classNames = nodeInfo.className || "";
+
     for (const [pattern, regex] of this.componentPatterns) {
       if (regex.test(classNames)) {
         const textHint = this.getTextHint(nodeInfo);
@@ -164,17 +168,17 @@ export class DeveloperNamingEngine {
 
     // Special handling for common patterns
     if (this.isHeroSection(nodeInfo)) {
-      return 'heroSection';
+      return "heroSection";
     }
 
     if (this.isCard(nodeInfo)) {
       const textHint = this.getTextHint(nodeInfo);
-      return textHint ? `${textHint}Card` : 'card';
+      return textHint ? `${textHint}Card` : "card";
     }
 
     if (this.isModal(nodeInfo)) {
       const textHint = this.getTextHint(nodeInfo);
-      return textHint ? `${textHint}Modal` : 'modal';
+      return textHint ? `${textHint}Modal` : "modal";
     }
 
     return null;
@@ -186,31 +190,34 @@ export class DeveloperNamingEngine {
   private getSemanticTagName(nodeInfo: NodeInfo): string | null {
     if (this.semanticTags.has(nodeInfo.tagName.toLowerCase())) {
       const tagName = nodeInfo.tagName.toLowerCase();
-      
+
       // Special handling for interactive elements
       if (this.interactiveTags.has(tagName)) {
         const textHint = this.getTextHint(nodeInfo);
-        
-        if (tagName === 'button') {
-          return textHint ? `${textHint}Button` : 'button';
+
+        if (tagName === "button") {
+          return textHint ? `${textHint}Button` : "button";
         }
-        
-        if (tagName === 'a') {
-          return textHint ? `${textHint}Link` : 'link';
+
+        if (tagName === "a") {
+          return textHint ? `${textHint}Link` : "link";
         }
-        
-        if (tagName === 'input') {
-          const inputType = nodeInfo.type || 'text';
-          const placeholderHint = nodeInfo.placeholder ? 
-            this.extractTextHint(nodeInfo.placeholder) : textHint;
-          return placeholderHint ? `${placeholderHint}${this.capitalize(inputType)}Input` : `${inputType}Input`;
+
+        if (tagName === "input") {
+          const inputType = nodeInfo.type || "text";
+          const placeholderHint = nodeInfo.placeholder
+            ? this.extractTextHint(nodeInfo.placeholder)
+            : textHint;
+          return placeholderHint
+            ? `${placeholderHint}${this.capitalize(inputType)}Input`
+            : `${inputType}Input`;
         }
       }
 
       // Handle headings with content
       if (/^h[1-6]$/.test(tagName)) {
         const textHint = this.getTextHint(nodeInfo);
-        return textHint ? `${textHint}Heading` : 'heading';
+        return textHint ? `${textHint}Heading` : "heading";
       }
 
       return tagName;
@@ -226,11 +233,12 @@ export class DeveloperNamingEngine {
     if (!nodeInfo.className) return null;
 
     const classes = nodeInfo.className.split(/\s+/);
-    const meaningfulClass = classes.find(cls => 
-      cls.length > 2 && 
-      !cls.startsWith('css-') && 
-      !cls.match(/^[a-z]\d+$/) &&
-      !cls.includes('__')
+    const meaningfulClass = classes.find(
+      (cls) =>
+        cls.length > 2 &&
+        !cls.startsWith("css-") &&
+        !cls.match(/^[a-z]\d+$/) &&
+        !cls.includes("__")
     );
 
     if (meaningfulClass) {
@@ -257,24 +265,24 @@ export class DeveloperNamingEngine {
    */
   private getAttributeBasedName(nodeInfo: NodeInfo): string | null {
     // Handle images
-    if (nodeInfo.tagName.toLowerCase() === 'img') {
+    if (nodeInfo.tagName.toLowerCase() === "img") {
       if (nodeInfo.alt) {
         const textHint = this.extractTextHint(nodeInfo.alt);
-        return textHint ? `${textHint}Image` : 'image';
+        return textHint ? `${textHint}Image` : "image";
       }
       if (nodeInfo.src) {
-        const filename = nodeInfo.src.split('/').pop()?.split('.')[0];
+        const filename = nodeInfo.src.split("/").pop()?.split(".")[0];
         if (filename && filename.length > 2) {
           return `${this.cleanAttributeValue(filename)}Image`;
         }
       }
-      return 'image';
+      return "image";
     }
 
     // Handle links
-    if (nodeInfo.tagName.toLowerCase() === 'a' && nodeInfo.href) {
+    if (nodeInfo.tagName.toLowerCase() === "a" && nodeInfo.href) {
       const textHint = this.getTextHint(nodeInfo);
-      return textHint ? `${textHint}Link` : 'link';
+      return textHint ? `${textHint}Link` : "link";
     }
 
     return null;
@@ -285,25 +293,40 @@ export class DeveloperNamingEngine {
    */
   private getFallbackName(nodeInfo: NodeInfo): string {
     const tagName = nodeInfo.tagName.toLowerCase();
-    return this.getTagBasedSuffix(tagName).toLowerCase() || 'element';
+    return this.getTagBasedSuffix(tagName).toLowerCase() || "element";
   }
 
   /**
    * Add contextual prefix to name
    */
-  private addContextualPrefix(baseName: string, nodeInfo: NodeInfo, context: NamingContext): string {
+  private addContextualPrefix(
+    baseName: string,
+    nodeInfo: NodeInfo,
+    context: NamingContext
+  ): string {
     // Add sibling differentiation
-    if (nodeInfo.siblingIndex !== undefined && nodeInfo.totalSiblings !== undefined && nodeInfo.totalSiblings > 1) {
+    if (
+      nodeInfo.siblingIndex !== undefined &&
+      nodeInfo.totalSiblings !== undefined &&
+      nodeInfo.totalSiblings > 1
+    ) {
       // Only add index for middle items or when there are many siblings
-      if (nodeInfo.totalSiblings > 3 || (nodeInfo.siblingIndex > 0 && nodeInfo.siblingIndex < nodeInfo.totalSiblings - 1)) {
+      if (
+        nodeInfo.totalSiblings > 3 ||
+        (nodeInfo.siblingIndex > 0 &&
+          nodeInfo.siblingIndex < nodeInfo.totalSiblings - 1)
+      ) {
         return `${baseName}${nodeInfo.siblingIndex + 1}`;
       }
-      
+
       // For first/last of few siblings
       if (nodeInfo.siblingIndex === 0 && nodeInfo.totalSiblings <= 3) {
         return `first${this.capitalize(baseName)}`;
       }
-      if (nodeInfo.siblingIndex === nodeInfo.totalSiblings - 1 && nodeInfo.totalSiblings <= 3) {
+      if (
+        nodeInfo.siblingIndex === nodeInfo.totalSiblings - 1 &&
+        nodeInfo.totalSiblings <= 3
+      ) {
         return `last${this.capitalize(baseName)}`;
       }
     }
@@ -318,7 +341,10 @@ export class DeveloperNamingEngine {
     let uniqueName = name;
     let counter = 1;
 
-    while (context.usedNames.has(uniqueName) || this.usedNamesGlobal.has(uniqueName)) {
+    while (
+      context.usedNames.has(uniqueName) ||
+      this.usedNamesGlobal.has(uniqueName)
+    ) {
       uniqueName = `${name}${counter}`;
       counter++;
     }
@@ -338,7 +364,7 @@ export class DeveloperNamingEngine {
       nodeInfo.title,
       nodeInfo.placeholder,
       nodeInfo.alt,
-      nodeInfo.textContent
+      nodeInfo.textContent,
     ];
 
     for (const source of sources) {
@@ -348,31 +374,32 @@ export class DeveloperNamingEngine {
       }
     }
 
-    return '';
+    return "";
   }
 
   /**
    * Extract meaningful text hint from string
    */
   private extractTextHint(text: string): string {
-    if (!text || text.length < 2) return '';
+    if (!text || text.length < 2) return "";
 
     // Clean and normalize text
     const cleaned = text
-      .replace(/[^\w\s]/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
 
     // Split into words and filter meaningful ones
-    const words = cleaned.split(' ')
-      .filter(word => word.length > 1)
-      .filter(word => !this.isStopWord(word))
+    const words = cleaned
+      .split(" ")
+      .filter((word) => word.length > 1)
+      .filter((word) => !this.isStopWord(word))
       .slice(0, 2); // Take max 2 words
 
-    if (words.length === 0) return '';
+    if (words.length === 0) return "";
 
     // Join words and clean
-    return words.map(word => this.capitalize(word.toLowerCase())).join('');
+    return words.map((word) => this.capitalize(word.toLowerCase())).join("");
   }
 
   /**
@@ -380,30 +407,30 @@ export class DeveloperNamingEngine {
    */
   private getTagBasedSuffix(tagName: string): string {
     const suffixMap: Record<string, string> = {
-      'div': 'Container',
-      'span': 'Text',
-      'p': 'Paragraph',
-      'button': 'Button',
-      'input': 'Input',
-      'select': 'Select',
-      'textarea': 'Textarea',
-      'form': 'Form',
-      'table': 'Table',
-      'ul': 'List',
-      'ol': 'List',
-      'li': 'Item',
-      'img': 'Image',
-      'a': 'Link',
-      'nav': 'Navigation',
-      'header': 'Header',
-      'footer': 'Footer',
-      'main': 'Main',
-      'aside': 'Sidebar',
-      'section': 'Section',
-      'article': 'Article'
+      div: "Container",
+      span: "Text",
+      p: "Paragraph",
+      button: "Button",
+      input: "Input",
+      select: "Select",
+      textarea: "Textarea",
+      form: "Form",
+      table: "Table",
+      ul: "List",
+      ol: "List",
+      li: "Item",
+      img: "Image",
+      a: "Link",
+      nav: "Navigation",
+      header: "Header",
+      footer: "Footer",
+      main: "Main",
+      aside: "Sidebar",
+      section: "Section",
+      article: "Article",
     };
 
-    return suffixMap[tagName.toLowerCase()] || 'Element';
+    return suffixMap[tagName.toLowerCase()] || "Element";
   }
 
   /**
@@ -411,14 +438,14 @@ export class DeveloperNamingEngine {
    */
   private toCamelCase(str: string): string {
     return str
-      .replace(/[^a-zA-Z0-9]/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/[^a-zA-Z0-9]/g, " ")
+      .replace(/\s+/g, " ")
       .trim()
-      .split(' ')
-      .map((word, index) => 
+      .split(" ")
+      .map((word, index) =>
         index === 0 ? word.toLowerCase() : this.capitalize(word.toLowerCase())
       )
-      .join('');
+      .join("");
   }
 
   /**
@@ -433,9 +460,9 @@ export class DeveloperNamingEngine {
    */
   private cleanAttributeValue(value: string): string {
     return value
-      .replace(/[^a-zA-Z0-9\-_]/g, ' ')
-      .replace(/[\-_]/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/[^a-zA-Z0-9\-_]/g, " ")
+      .replace(/[\-_]/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
   }
 
@@ -444,9 +471,44 @@ export class DeveloperNamingEngine {
    */
   private isStopWord(word: string): boolean {
     const stopWords = new Set([
-      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
-      'click', 'here', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been',
-      'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might'
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "of",
+      "with",
+      "by",
+      "click",
+      "here",
+      "this",
+      "that",
+      "these",
+      "those",
+      "is",
+      "are",
+      "was",
+      "were",
+      "be",
+      "been",
+      "have",
+      "has",
+      "had",
+      "do",
+      "does",
+      "did",
+      "will",
+      "would",
+      "could",
+      "should",
+      "may",
+      "might",
     ]);
     return stopWords.has(word.toLowerCase());
   }
@@ -455,16 +517,18 @@ export class DeveloperNamingEngine {
    * Detect if element is a hero section
    */
   private isHeroSection(nodeInfo: NodeInfo): boolean {
-    const className = nodeInfo.className || '';
-    return /hero|banner|jumbotron|intro/i.test(className) &&
-           nodeInfo.tagName.toLowerCase() === 'section';
+    const className = nodeInfo.className || "";
+    return (
+      /hero|banner|jumbotron|intro/i.test(className) &&
+      nodeInfo.tagName.toLowerCase() === "section"
+    );
   }
 
   /**
    * Detect if element is a card
    */
   private isCard(nodeInfo: NodeInfo): boolean {
-    const className = nodeInfo.className || '';
+    const className = nodeInfo.className || "";
     return /card|tile|item/i.test(className);
   }
 
@@ -472,27 +536,27 @@ export class DeveloperNamingEngine {
    * Detect if element is a modal
    */
   private isModal(nodeInfo: NodeInfo): boolean {
-    const className = nodeInfo.className || '';
-    const role = nodeInfo.role || '';
-    return /modal|dialog|popup|overlay/i.test(className) || role === 'dialog';
+    const className = nodeInfo.className || "";
+    const role = nodeInfo.role || "";
+    return /modal|dialog|popup|overlay/i.test(className) || role === "dialog";
   }
 
   /**
    * Initialize component patterns
    */
   private initializePatterns(): void {
-    this.componentPatterns.set('button', /btn|button/i);
-    this.componentPatterns.set('card', /card|tile|item/i);
-    this.componentPatterns.set('modal', /modal|dialog|popup/i);
-    this.componentPatterns.set('dropdown', /dropdown|select|menu/i);
-    this.componentPatterns.set('navigation', /nav|menu|breadcrumb/i);
-    this.componentPatterns.set('form', /form|input|field/i);
-    this.componentPatterns.set('list', /list|grid|table/i);
-    this.componentPatterns.set('header', /header|top|title/i);
-    this.componentPatterns.set('footer', /footer|bottom/i);
-    this.componentPatterns.set('sidebar', /sidebar|aside|side/i);
-    this.componentPatterns.set('content', /content|main|body/i);
-    this.componentPatterns.set('container', /container|wrapper|box/i);
+    this.componentPatterns.set("button", /btn|button/i);
+    this.componentPatterns.set("card", /card|tile|item/i);
+    this.componentPatterns.set("modal", /modal|dialog|popup/i);
+    this.componentPatterns.set("dropdown", /dropdown|select|menu/i);
+    this.componentPatterns.set("navigation", /nav|menu|breadcrumb/i);
+    this.componentPatterns.set("form", /form|input|field/i);
+    this.componentPatterns.set("list", /list|grid|table/i);
+    this.componentPatterns.set("header", /header|top|title/i);
+    this.componentPatterns.set("footer", /footer|bottom/i);
+    this.componentPatterns.set("sidebar", /sidebar|aside|side/i);
+    this.componentPatterns.set("content", /content|main|body/i);
+    this.componentPatterns.set("container", /container|wrapper|box/i);
   }
 
   /**
@@ -500,13 +564,45 @@ export class DeveloperNamingEngine {
    */
   private initializeSemanticTags(): void {
     this.semanticTags = new Set([
-      'header', 'nav', 'main', 'section', 'article', 'aside', 'footer',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'button', 'a', 'input', 'select', 'textarea', 'form',
-      'table', 'thead', 'tbody', 'tr', 'th', 'td',
-      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-      'figure', 'figcaption', 'img', 'video', 'audio',
-      'details', 'summary', 'dialog'
+      "header",
+      "nav",
+      "main",
+      "section",
+      "article",
+      "aside",
+      "footer",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "button",
+      "a",
+      "input",
+      "select",
+      "textarea",
+      "form",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "ul",
+      "ol",
+      "li",
+      "dl",
+      "dt",
+      "dd",
+      "figure",
+      "figcaption",
+      "img",
+      "video",
+      "audio",
+      "details",
+      "summary",
+      "dialog",
     ]);
   }
 
@@ -515,7 +611,13 @@ export class DeveloperNamingEngine {
    */
   private initializeInteractiveTags(): void {
     this.interactiveTags = new Set([
-      'a', 'button', 'input', 'select', 'textarea', 'details', 'summary'
+      "a",
+      "button",
+      "input",
+      "select",
+      "textarea",
+      "details",
+      "summary",
     ]);
   }
 
@@ -523,35 +625,35 @@ export class DeveloperNamingEngine {
    * Initialize ARIA role mappings
    */
   private initializeAriaRoleMap(): void {
-    this.ariaRoleMap.set('button', 'button');
-    this.ariaRoleMap.set('link', 'link');
-    this.ariaRoleMap.set('navigation', 'navigation');
-    this.ariaRoleMap.set('banner', 'banner');
-    this.ariaRoleMap.set('main', 'main');
-    this.ariaRoleMap.set('complementary', 'sidebar');
-    this.ariaRoleMap.set('contentinfo', 'footer');
-    this.ariaRoleMap.set('search', 'search');
-    this.ariaRoleMap.set('form', 'form');
-    this.ariaRoleMap.set('dialog', 'modal');
-    this.ariaRoleMap.set('alertdialog', 'alertModal');
-    this.ariaRoleMap.set('menu', 'menu');
-    this.ariaRoleMap.set('menuitem', 'menuItem');
-    this.ariaRoleMap.set('tab', 'tab');
-    this.ariaRoleMap.set('tabpanel', 'tabPanel');
-    this.ariaRoleMap.set('list', 'list');
-    this.ariaRoleMap.set('listitem', 'listItem');
-    this.ariaRoleMap.set('table', 'table');
-    this.ariaRoleMap.set('row', 'row');
-    this.ariaRoleMap.set('cell', 'cell');
-    this.ariaRoleMap.set('columnheader', 'columnHeader');
-    this.ariaRoleMap.set('rowheader', 'rowHeader');
-    this.ariaRoleMap.set('textbox', 'textbox');
-    this.ariaRoleMap.set('checkbox', 'checkbox');
-    this.ariaRoleMap.set('radio', 'radio');
-    this.ariaRoleMap.set('slider', 'slider');
-    this.ariaRoleMap.set('progressbar', 'progressBar');
-    this.ariaRoleMap.set('alert', 'alert');
-    this.ariaRoleMap.set('status', 'status');
+    this.ariaRoleMap.set("button", "button");
+    this.ariaRoleMap.set("link", "link");
+    this.ariaRoleMap.set("navigation", "navigation");
+    this.ariaRoleMap.set("banner", "banner");
+    this.ariaRoleMap.set("main", "main");
+    this.ariaRoleMap.set("complementary", "sidebar");
+    this.ariaRoleMap.set("contentinfo", "footer");
+    this.ariaRoleMap.set("search", "search");
+    this.ariaRoleMap.set("form", "form");
+    this.ariaRoleMap.set("dialog", "modal");
+    this.ariaRoleMap.set("alertdialog", "alertModal");
+    this.ariaRoleMap.set("menu", "menu");
+    this.ariaRoleMap.set("menuitem", "menuItem");
+    this.ariaRoleMap.set("tab", "tab");
+    this.ariaRoleMap.set("tabpanel", "tabPanel");
+    this.ariaRoleMap.set("list", "list");
+    this.ariaRoleMap.set("listitem", "listItem");
+    this.ariaRoleMap.set("table", "table");
+    this.ariaRoleMap.set("row", "row");
+    this.ariaRoleMap.set("cell", "cell");
+    this.ariaRoleMap.set("columnheader", "columnHeader");
+    this.ariaRoleMap.set("rowheader", "rowHeader");
+    this.ariaRoleMap.set("textbox", "textbox");
+    this.ariaRoleMap.set("checkbox", "checkbox");
+    this.ariaRoleMap.set("radio", "radio");
+    this.ariaRoleMap.set("slider", "slider");
+    this.ariaRoleMap.set("progressbar", "progressBar");
+    this.ariaRoleMap.set("alert", "alert");
+    this.ariaRoleMap.set("status", "status");
   }
 
   /**
@@ -572,7 +674,7 @@ export class DeveloperNamingEngine {
     return {
       totalNamesGenerated: this.usedNamesGlobal.size,
       componentPatternsDetected: this.componentPatterns.size,
-      semanticTagsUsed: this.semanticTags.size
+      semanticTagsUsed: this.semanticTags.size,
     };
   }
 }
@@ -593,17 +695,17 @@ export function extractNodeInfo(element: Element): NodeInfo {
     className: element.className || undefined,
     id: element.id || undefined,
     textContent: element.textContent?.trim() || undefined,
-    role: element.getAttribute('role') || undefined,
-    type: element.getAttribute('type') || undefined,
-    href: element.getAttribute('href') || undefined,
-    src: element.getAttribute('src') || undefined,
-    alt: element.getAttribute('alt') || undefined,
-    title: element.getAttribute('title') || undefined,
-    placeholder: element.getAttribute('placeholder') || undefined,
-    value: element.getAttribute('value') || undefined,
-    ariaLabel: element.getAttribute('aria-label') || undefined,
-    ariaDescribedBy: element.getAttribute('aria-describedby') || undefined,
-    dataTestId: element.getAttribute('data-testid') || undefined,
-    parentTagName: element.parentElement?.tagName || undefined
+    role: element.getAttribute("role") || undefined,
+    type: element.getAttribute("type") || undefined,
+    href: element.getAttribute("href") || undefined,
+    src: element.getAttribute("src") || undefined,
+    alt: element.getAttribute("alt") || undefined,
+    title: element.getAttribute("title") || undefined,
+    placeholder: element.getAttribute("placeholder") || undefined,
+    value: element.getAttribute("value") || undefined,
+    ariaLabel: element.getAttribute("aria-label") || undefined,
+    ariaDescribedBy: element.getAttribute("aria-describedby") || undefined,
+    dataTestId: element.getAttribute("data-testid") || undefined,
+    parentTagName: element.parentElement?.tagName || undefined,
   };
 }

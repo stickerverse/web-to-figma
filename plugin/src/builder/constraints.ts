@@ -1,18 +1,283 @@
 /**
- * CONSTRAINTS PROCESSING SYSTEM
+ * CONSTRAINTS PROCESSING SYSTEM WITH FLEXBOX SUPPORT
  * 
  * Handles responsive constraints and layout grids
  * Sets constraints to mirror DOM anchoring and creates layout grids for grid systems
+ * Includes comprehensive flexbox → Auto Layout constraint mapping
  */
 
 import { DrawableItem } from './index';
+import { IRNode, IRLayout, isFlexContainer, isFlexItem } from '../../../../ir';
+import { FigmaAutoLayoutConfig, FlexItemConfig, ConstraintConfig, LayoutGrid, Constraints } from './mapping';
 
 export class ConstraintsProcessor {
 
   /**
-   * Compute constraints for a drawable item
+   * Compute constraints for a drawable item with comprehensive flexbox support
    */
   computeConstraints(item: DrawableItem): Constraints | null {
+    const element = item.element;
+    
+    // Check if element is in a flexbox context
+    const flexConstraints = this.computeFlexboxConstraints(item);
+    if (flexConstraints) {
+      return flexConstraints;
+    }
+    
+    // Fallback to standard constraint computation
+    const styles = element.styles;
+    
+    // Determine horizontal constraints
+    const horizontal = this.computeHorizontalConstraint(styles, element);
+    
+    // Determine vertical constraints
+    const vertical = this.computeVerticalConstraint(styles, element);
+    
+    // Only return constraints if they differ from defaults
+    if (horizontal !== 'LEFT' || vertical !== 'TOP') {
+      return { horizontal, vertical };
+    }
+    
+    return null;
+  }
+
+  /**
+   * COMPREHENSIVE FLEXBOX CONSTRAINT HANDLING
+   * Computes constraints for elements within flexbox containers
+   */
+  
+  /**
+   * Compute constraints for flexbox items and containers
+   */
+  computeFlexboxConstraints(item: DrawableItem): Constraints | null {
+    const element = item.element;
+    
+    // Check if element is a flex item (child of flex container)
+    if (this.isFlexboxChild(element)) {
+      return this.computeFlexItemConstraints(item);
+    }
+    
+    // Check if element is a flex container
+    if (this.isFlexboxContainer(element)) {
+      return this.computeFlexContainerConstraints(item);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Compute constraints for flex items within Auto Layout frames
+   */
+  computeFlexItemConstraints(item: DrawableItem): Constraints | null {
+    const element = item.element;
+    let horizontal: Constraints['horizontal'] = 'LEFT';
+    let vertical: Constraints['vertical'] = 'TOP';
+    
+    try {
+      // Get flex item properties from IRNode
+      if ('layout' in element && (element as any).layout?.flexItem) {
+        const flexItem = (element as any).layout.flexItem;
+        const childAlignment = (element as any).layout.childAlignment as IRLayout['childAlignment'] | undefined;
+        
+        horizontal = this.mapFlexItemHorizontalConstraints(flexItem, childAlignment);
+        vertical = this.mapFlexItemVerticalConstraints(flexItem, childAlignment);
+        
+        console.log(`Flex item constraints for ${element.id}: h=${horizontal}, v=${vertical}`);
+      }
+      // Fallback to legacy styles
+      else if (element.styles) {
+        const constraints = this.mapLegacyFlexItemConstraints(element);
+        if (constraints) {
+          horizontal = constraints.horizontal;
+          vertical = constraints.vertical;
+        }
+      }
+    } catch (error) {
+      console.warn(`Error computing flex item constraints for ${element.id}:`, error);
+    }
+    
+    // Return constraints if they differ from defaults
+    if (horizontal !== 'LEFT' || vertical !== 'TOP') {
+      return { horizontal, vertical };
+    }
+    
+    return null;
+  }
+
+  /**
+   * Compute constraints for flex containers (Auto Layout frames)
+   */
+  computeFlexContainerConstraints(item: DrawableItem): Constraints | null {
+    const element = item.element;
+    
+    // Flex containers typically use standard positioning constraints
+    // unless they're also flex items within another flex container
+    if (this.isFlexboxChild(element)) {
+      return this.computeFlexItemConstraints(item);
+    }
+    
+    // Standard container constraints
+    return this.computeStandardConstraints(item);
+  }
+
+  /**
+   * Map flex item properties to horizontal constraints
+   */
+  private mapFlexItemHorizontalConstraints(
+    flexItem: any,
+    childAlignment?: IRLayout['childAlignment']
+  ): Constraints['horizontal'] {
+    const mainIsHorizontal = childAlignment?.mainAxisOrientation === 'horizontal';
+    const crossIsHorizontal = childAlignment?.crossAxisOrientation === 'horizontal';
+    
+    if (mainIsHorizontal) {
+      if (flexItem.grow > 0) {
+        return 'LEFT_RIGHT';
+      }
+      if (flexItem.shrink > 1) {
+        return 'SCALE';
+      }
+      const mapped = this.mapAxisAlignmentToHorizontal(childAlignment!.mainAxis, childAlignment?.mainAxisIsReversed);
+      if (mapped) {
+        return mapped;
+      }
+    }
+    
+    if (crossIsHorizontal && childAlignment) {
+      const mapped = this.mapAxisAlignmentToHorizontal(childAlignment.crossAxis, childAlignment.crossAxisIsReversed);
+      if (mapped) {
+        return mapped;
+      }
+    }
+    
+    if (!childAlignment && flexItem.alignSelf === 'stretch') {
+      return 'LEFT_RIGHT';
+    }
+    
+    return 'LEFT';
+  }
+
+  /**
+   * Map flex item properties to vertical constraints
+   */
+  private mapFlexItemVerticalConstraints(
+    flexItem: any,
+    childAlignment?: IRLayout['childAlignment']
+  ): Constraints['vertical'] {
+    const mainIsVertical = childAlignment?.mainAxisOrientation === 'vertical';
+    const crossIsVertical = childAlignment?.crossAxisOrientation === 'vertical';
+    
+    if (mainIsVertical) {
+      if (flexItem.grow > 0) {
+        return 'TOP_BOTTOM';
+      }
+      if (flexItem.shrink > 1) {
+        return 'SCALE';
+      }
+      const mapped = this.mapAxisAlignmentToVertical(childAlignment!.mainAxis, childAlignment?.mainAxisIsReversed);
+      if (mapped) {
+        return mapped;
+      }
+    }
+    
+    if (crossIsVertical && childAlignment) {
+      const mapped = this.mapAxisAlignmentToVertical(childAlignment.crossAxis, childAlignment.crossAxisIsReversed);
+      if (mapped) {
+        return mapped;
+      }
+    }
+    
+    if (!childAlignment && (flexItem.alignSelf === 'stretch' || flexItem.alignSelf === 'baseline')) {
+      return flexItem.alignSelf === 'stretch' ? 'TOP_BOTTOM' : 'TOP';
+    }
+    
+    return 'TOP';
+  }
+
+  /**
+   * Map legacy flex item styles to constraints
+   */
+  private mapLegacyFlexItemConstraints(element: any): Constraints | null {
+    const styles = element.styles;
+    
+    if (!styles) return null;
+    
+    let horizontal: Constraints['horizontal'] = 'LEFT';
+    let vertical: Constraints['vertical'] = 'TOP';
+    
+    // Check flex grow
+    const flexGrow = parseFloat(styles.flexGrow || '0');
+    if (flexGrow > 0) {
+      horizontal = 'LEFT_RIGHT';
+      vertical = 'TOP_BOTTOM';
+    }
+    
+    // Check align-self
+    const alignSelf = styles.alignSelf;
+    if (alignSelf) {
+      switch (alignSelf) {
+        case 'flex-end':
+        case 'end':
+          vertical = 'BOTTOM';
+          break;
+        case 'center':
+          vertical = 'CENTER';
+          break;
+        case 'stretch':
+          vertical = 'TOP_BOTTOM';
+          break;
+      }
+    }
+    
+    return { horizontal, vertical };
+  }
+
+  /**
+   * Check if element is a flexbox container
+   */
+  private isFlexboxContainer(element: any): boolean {
+    // Check IRNode format
+    if ('layout' in element) {
+      return isFlexContainer(element as IRNode);
+    }
+    
+    // Check legacy styles
+    if (element.styles) {
+      return element.styles.display === 'flex' || element.styles.display === 'inline-flex';
+    }
+    
+    return false;
+  }
+
+  /**
+   * Check if element is a child of a flexbox container
+   */
+  private isFlexboxChild(element: any): boolean {
+    // Check IRNode format
+    if ('layout' in element) {
+      return isFlexItem(element as IRNode);
+    }
+    
+    // For legacy format, we'd need parent context to determine this
+    // This is a simplified check
+    if (element.styles) {
+      return !!(
+        element.styles.flexGrow ||
+        element.styles.flexShrink ||
+        element.styles.flexBasis ||
+        element.styles.alignSelf ||
+        element.styles.order ||
+        element.styles.flex
+      );
+    }
+    
+    return false;
+  }
+
+  /**
+   * Compute standard (non-flexbox) constraints
+   */
+  private computeStandardConstraints(item: DrawableItem): Constraints | null {
     const element = item.element;
     const styles = element.styles;
     
@@ -31,42 +296,116 @@ export class ConstraintsProcessor {
   }
 
   /**
-   * Create layout grids for grid/flex containers
+   * Create layout grids for grid/flex containers with enhanced flexbox support
    */
   createLayoutGrids(item: DrawableItem): LayoutGrid[] | null {
     const element = item.element;
-    const styles = element.styles;
     const grids: LayoutGrid[] = [];
     
-    // CSS Grid layout grids
-    if (styles.display === 'grid') {
-      const gridTemplateColumns = styles.gridTemplateColumns;
-      const gridTemplateRows = styles.gridTemplateRows;
-      
-      if (gridTemplateColumns) {
-        const columnGrid = this.createColumnGridFromTemplate(gridTemplateColumns, item);
-        if (columnGrid) grids.push(columnGrid);
+    try {
+      // Check IRNode format for comprehensive flex support
+      if ('layout' in element && (element as any).layout?.flex) {
+        const flexGrid = this.createFlexLayoutGridFromIR(element as unknown as IRNode, item);
+        if (flexGrid) grids.push(flexGrid);
+      }
+      // CSS Grid layout grids
+      else if (element.styles?.display === 'grid') {
+        const gridGrids = this.createCSSGridLayouts(element.styles, item);
+        grids.push(...gridGrids);
+      }
+      // Legacy flexbox layout grids
+      else if (element.styles?.display === 'flex') {
+        const flexGrid = this.createLegacyFlexLayoutGrid(element.styles, item);
+        if (flexGrid) grids.push(flexGrid);
       }
       
-      if (gridTemplateRows) {
-        const rowGrid = this.createRowGridFromTemplate(gridTemplateRows, item);
-        if (rowGrid) grids.push(rowGrid);
+      // Responsive breakpoint grids
+      if (this.hasResponsiveBreakpoints(element)) {
+        const responsiveGrid = this.createResponsiveGrid(element);
+        if (responsiveGrid) grids.push(responsiveGrid);
       }
-    }
-    
-    // Flexbox layout grids
-    else if (styles.display === 'flex') {
-      const flexGrid = this.createFlexLayoutGrid(styles, item);
-      if (flexGrid) grids.push(flexGrid);
-    }
-    
-    // Responsive breakpoint grids
-    if (this.hasResponsiveBreakpoints(element)) {
-      const responsiveGrid = this.createResponsiveGrid(element);
-      if (responsiveGrid) grids.push(responsiveGrid);
+    } catch (error) {
+      console.warn(`Error creating layout grids for ${element.id}:`, error);
     }
     
     return grids.length > 0 ? grids : null;
+  }
+
+  /**
+   * Create layout grid from IRNode flexbox properties (comprehensive)
+   */
+  private createFlexLayoutGridFromIR(node: IRNode, item: DrawableItem): LayoutGrid | null {
+    const flex = node.layout.flex!;
+    const rect = item.element.rect;
+    
+    const isVertical = flex.direction.startsWith('column');
+    const gap = isVertical ? flex.gap.row : flex.gap.column;
+    
+    // Calculate grid based on actual flex properties
+    return {
+      pattern: isVertical ? "ROWS" : "COLUMNS",
+      alignment: this.mapFlexAlignmentToGridAlignment(flex.justifyContent),
+      gutterSize: gap,
+      count: this.estimateFlexItemCount(node, item),
+      sectionSize: isVertical 
+        ? rect.height / this.estimateFlexItemCount(node, item)
+        : rect.width / this.estimateFlexItemCount(node, item),
+      visible: true,
+      color: { r: 0.2, g: 0.8, b: 0.2, a: 0.1 } // Green for flex grids
+    };
+  }
+
+  /**
+   * Create CSS Grid layout grids
+   */
+  private createCSSGridLayouts(styles: any, item: DrawableItem): LayoutGrid[] {
+    const grids: LayoutGrid[] = [];
+    
+    if (styles.gridTemplateColumns) {
+      const columnGrid = this.createColumnGridFromTemplate(styles.gridTemplateColumns, item);
+      if (columnGrid) grids.push(columnGrid);
+    }
+    
+    if (styles.gridTemplateRows) {
+      const rowGrid = this.createRowGridFromTemplate(styles.gridTemplateRows, item);
+      if (rowGrid) grids.push(rowGrid);
+    }
+    
+    return grids;
+  }
+
+  /**
+   * Map flex alignment to grid alignment
+   */
+  private mapFlexAlignmentToGridAlignment(justifyContent: string): LayoutGrid['alignment'] {
+    switch (justifyContent) {
+      case 'flex-start':
+      case 'start':
+        return 'MIN';
+      case 'flex-end':
+      case 'end':
+        return 'MAX';
+      case 'center':
+      case 'space-around':
+      case 'space-evenly':
+        return 'CENTER';
+      case 'space-between':
+      default:
+        return 'MIN';
+    }
+  }
+
+  /**
+   * Estimate the number of flex items for grid calculation
+   */
+  private estimateFlexItemCount(node: IRNode, item: DrawableItem): number {
+    // Try to get actual child count if available
+    if (node.children && node.children.length > 0) {
+      return Math.max(1, node.children.length);
+    }
+    
+    // Fallback to a reasonable default
+    return node.layout.flex!.direction.startsWith('column') ? 8 : 12;
   }
 
   /**
@@ -127,6 +466,13 @@ export class ConstraintsProcessor {
     // Check for centering
     if (this.isCentered(styles, 'horizontal')) {
       return 'CENTER';
+    }
+
+    if (position !== 'absolute' && position !== 'fixed') {
+      const alignmentConstraint = this.resolveHorizontalAlignmentConstraint(element);
+      if (alignmentConstraint) {
+        return alignmentConstraint;
+      }
     }
     
     return 'LEFT'; // Default
@@ -194,6 +540,13 @@ export class ConstraintsProcessor {
     if (this.isCentered(styles, 'vertical')) {
       return 'CENTER';
     }
+
+    if (position !== 'absolute' && position !== 'fixed') {
+      const alignmentConstraint = this.resolveVerticalAlignmentConstraint(element);
+      if (alignmentConstraint) {
+        return alignmentConstraint;
+      }
+    }
     
     return 'TOP'; // Default
   }
@@ -242,9 +595,9 @@ export class ConstraintsProcessor {
   }
 
   /**
-   * Create layout grid for flexbox containers
+   * Create layout grid for flexbox containers (legacy)
    */
-  private createFlexLayoutGrid(styles: any, item: DrawableItem): LayoutGrid | null {
+  private createLegacyFlexLayoutGrid(styles: any, item: DrawableItem): LayoutGrid | null {
     const direction = styles.flexDirection || 'row';
     const gap = this.parseGutter(styles.gap);
     
@@ -287,6 +640,90 @@ export class ConstraintsProcessor {
       visible: false,
       color: { r: 0.82, g: 0.96, b: 0.66, a: 0.1 }
     };
+  }
+
+  private resolveHorizontalAlignmentConstraint(element: any): Constraints['horizontal'] | null {
+    const alignment = this.getChildAlignment(element);
+    if (!alignment) return null;
+    
+    if (alignment.mainAxisOrientation === 'horizontal') {
+      return this.mapAxisAlignmentToHorizontal(alignment.mainAxis, alignment.mainAxisIsReversed);
+    }
+    
+    if (alignment.crossAxisOrientation === 'horizontal') {
+      return this.mapAxisAlignmentToHorizontal(alignment.crossAxis, alignment.crossAxisIsReversed);
+    }
+    
+    return null;
+  }
+
+  private resolveVerticalAlignmentConstraint(element: any): Constraints['vertical'] | null {
+    const alignment = this.getChildAlignment(element);
+    if (!alignment) return null;
+    
+    if (alignment.mainAxisOrientation === 'vertical') {
+      return this.mapAxisAlignmentToVertical(alignment.mainAxis, alignment.mainAxisIsReversed);
+    }
+    
+    if (alignment.crossAxisOrientation === 'vertical') {
+      return this.mapAxisAlignmentToVertical(alignment.crossAxis, alignment.crossAxisIsReversed);
+    }
+    
+    return null;
+  }
+
+  private mapAxisAlignmentToHorizontal(value?: string, isReversed?: boolean): Constraints['horizontal'] | null {
+    if (!value) return null;
+    
+    switch (value) {
+      case 'start':
+        return isReversed ? 'RIGHT' : 'LEFT';
+      case 'end':
+        return isReversed ? 'LEFT' : 'RIGHT';
+      case 'center':
+        return 'CENTER';
+      case 'stretch':
+        return 'LEFT_RIGHT';
+      case 'space-between':
+      case 'space-around':
+      case 'space-evenly':
+        return 'SCALE';
+      case 'baseline':
+        return 'LEFT';
+      default:
+        return null;
+    }
+  }
+
+  private mapAxisAlignmentToVertical(value?: string, isReversed?: boolean): Constraints['vertical'] | null {
+    if (!value) return null;
+    
+    switch (value) {
+      case 'start':
+        return isReversed ? 'BOTTOM' : 'TOP';
+      case 'end':
+        return isReversed ? 'TOP' : 'BOTTOM';
+      case 'center':
+        return 'CENTER';
+      case 'stretch':
+        return 'TOP_BOTTOM';
+      case 'space-between':
+      case 'space-around':
+      case 'space-evenly':
+        return 'SCALE';
+      case 'baseline':
+        return 'TOP';
+      default:
+        return null;
+    }
+  }
+
+  private getChildAlignment(element: any): IRLayout['childAlignment'] | null {
+    if (element && typeof element === 'object' && 'layout' in element) {
+      const layout = (element as IRNode).layout;
+      return layout?.childAlignment || null;
+    }
+    return null;
   }
 
   // Helper methods

@@ -9,225 +9,381 @@
       margin: 0;
       padding: 0;
     }
-    
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 12px;
-      padding: 16px;
-      background: #ffffff;
-      color: #000000;
+      font-size: 13px;
+      padding: 24px;
+      background: #1a1816;
+      color: #e8e6e3;
+      line-height: 1.5;
     }
-    
+
     .container {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 20px;
+      max-width: 100%;
     }
-    
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 16px 0;
+    }
+
     h1 {
-      font-size: 14px;
+      font-size: 18px;
       font-weight: 600;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
+      color: #e8e6e3;
+      letter-spacing: -0.3px;
     }
-    
+
     .subtitle {
-      font-size: 11px;
-      color: #666;
-      margin-bottom: 12px;
+      font-size: 12px;
+      color: #a39e98;
+      font-weight: 400;
     }
-    
+
+    /* Input Section */
+    .input-section {
+      background: #2a2623;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #3a3632;
+    }
+
     label {
       display: block;
       font-weight: 500;
-      margin-bottom: 6px;
-      font-size: 11px;
-      color: #333;
-    }
-    
-    input[type="text"],
-    input[type="url"],
-    select {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      margin-bottom: 10px;
       font-size: 12px;
-      font-family: inherit;
-    }
-    
-    input:focus,
-    select:focus {
-      outline: none;
-      border-color: #18a0fb;
-    }
-    
-    .mode-selector {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
-    }
-    
-    .mode-option {
-      flex: 1;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      text-align: center;
-      cursor: pointer;
-      font-size: 11px;
-      transition: all 0.2s;
-    }
-    
-    .mode-option:hover {
-      border-color: #18a0fb;
-      background: #f5f5f5;
-    }
-    
-    .mode-option.selected {
-      border-color: #18a0fb;
-      background: #18a0fb;
-      color: white;
-    }
-    
-    .mode-description {
-      font-size: 10px;
-      color: #666;
-      margin-top: 2px;
-    }
-    
-    button {
-      width: 100%;
-      padding: 10px;
-      background: #18a0fb;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    
-    button:hover {
-      background: #0d8ce8;
-    }
-    
-    button:active {
-      background: #0b7dd4;
-    }
-    
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    
-    .status {
-      padding: 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      text-align: center;
-      display: none;
-    }
-    
-    .status.info {
-      background: #e8f4fd;
-      color: #0d8ce8;
-      border: 1px solid #b3d9f7;
-    }
-    
-    .status.success {
-      background: #e8f9f1;
-      color: #0d8c4d;
-      border: 1px solid #b3e8d0;
-    }
-    
-    .status.error {
-      background: #fde8e8;
-      color: #d40d0d;
-      border: 1px solid #f7b3b3;
-    }
-    
-    .progress-bar {
-      width: 100%;
-      height: 4px;
-      background: #f0f0f0;
-      border-radius: 2px;
-      overflow: hidden;
-      display: none;
-      margin-top: 8px;
-    }
-    
-    .progress-bar-fill {
-      height: 100%;
-      background: #18a0fb;
-      transition: width 0.3s;
-      width: 0%;
-    }
-    
-    .examples {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #eee;
-    }
-    
-    .example-title {
-      font-size: 11px;
-      font-weight: 500;
-      color: #666;
-      margin-bottom: 6px;
-    }
-    
-    .example-link {
-      display: block;
-      padding: 6px;
-      background: #f5f5f5;
-      border-radius: 3px;
-      text-decoration: none;
-      color: #333;
-      font-size: 10px;
-      margin-bottom: 4px;
-      transition: background 0.2s;
-    }
-    
-    .example-link:hover {
-      background: #e8e8e8;
-    }
-    
-    .feature-list {
-      font-size: 10px;
-      color: #666;
-      padding-left: 16px;
-      margin-top: 8px;
-    }
-    
-    .feature-list li {
-      margin-bottom: 4px;
+      color: #c4bfba;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    /* Website Preview */
-    .preview-section {
+    input[type="text"],
+    input[type="url"] {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid #3a3632;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #1a1816;
+      color: #e8e6e3;
+      transition: all 0.2s ease;
+    }
+
+    input::placeholder {
+      color: #6a6560;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #7c9885;
+      background: #201e1c;
+      box-shadow: 0 0 0 3px rgba(124, 152, 133, 0.1);
+    }
+
+    /* Buttons */
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px 20px;
+      background: #7c9885;
+      color: #1a1816;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(124, 152, 133, 0.15);
+    }
+
+    button:hover {
+      background: #8ba896;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(124, 152, 133, 0.25);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      background: #3a3632;
+      color: #6a6560;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    button.secondary {
+      background: transparent;
+      border: 1.5px solid #b8876b;
+      color: #b8876b;
+      box-shadow: none;
+    }
+
+    button.secondary:hover {
+      background: rgba(184, 135, 107, 0.1);
+      border-color: #c79578;
+      box-shadow: 0 2px 8px rgba(184, 135, 107, 0.15);
+    }
+
+    button.cancel {
+      background: transparent;
+      border: 1.5px solid #c47864;
+      color: #c47864;
+      box-shadow: none;
       display: none;
-      margin: 12px 0;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+    }
+
+    button.cancel:hover {
+      background: rgba(196, 120, 100, 0.1);
+      border-color: #d18a76;
+    }
+
+    button.cancel.visible {
+      display: block;
+      flex: 0.5;
+    }
+
+    /* Progress Section */
+    .progress-section {
+      background: #2a2623;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #3a3632;
+      display: none;
+    }
+
+    .progress-section.visible {
+      display: block;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .progress-label {
+      font-size: 12px;
+      color: #c4bfba;
+      font-weight: 500;
+    }
+
+    .progress-percent {
+      font-size: 12px;
+      color: #7c9885;
+      font-weight: 600;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #1a1816;
+      border-radius: 3px;
       overflow: hidden;
-      background: #f9f9f9;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7c9885 0%, #8ba896 100%);
+      transition: width 0.3s ease;
+      width: 0%;
+      border-radius: 3px;
+      box-shadow: 0 0 8px rgba(124, 152, 133, 0.4);
+    }
+
+    /* Status */
+    .status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status.visible {
+      display: flex;
+    }
+
+    .status.info {
+      background: rgba(124, 152, 133, 0.1);
+      color: #8ba896;
+      border: 1px solid rgba(124, 152, 133, 0.2);
+    }
+
+    .status.success {
+      background: rgba(107, 148, 120, 0.1);
+      color: #6b9478;
+      border: 1px solid rgba(107, 148, 120, 0.2);
+    }
+
+    .status.error {
+      background: rgba(196, 120, 100, 0.1);
+      color: #c47864;
+      border: 1px solid rgba(196, 120, 100, 0.2);
+    }
+
+    .status-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .status.info .status-icon {
+      background: #7c9885;
+      color: #1a1816;
+    }
+
+    .status.success .status-icon {
+      background: #6b9478;
+      color: #1a1816;
+    }
+
+    .status.error .status-icon {
+      background: #c47864;
+      color: #1a1816;
+    }
+
+    /* Terminal */
+    .terminal-section {
+      background: #2a2623;
+      border-radius: 12px;
+      border: 1px solid #3a3632;
+      overflow: hidden;
+      display: none;
+    }
+
+    .terminal-section.visible {
+      display: block;
+    }
+
+    .terminal-header {
+      padding: 12px 16px;
+      background: #1a1816;
+      color: #a39e98;
+      border-bottom: 1px solid #3a3632;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #c47864; }
+    .terminal-dot.yellow { background: #b8876b; }
+    .terminal-dot.green { background: #7c9885; }
+
+    .terminal-content {
+      height: 180px;
+      padding: 16px;
+      overflow-y: auto;
+      line-height: 1.6;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 10px;
+    }
+
+    .terminal-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .terminal-content::-webkit-scrollbar-track {
+      background: #1a1816;
+    }
+
+    .terminal-content::-webkit-scrollbar-thumb {
+      background: #3a3632;
+      border-radius: 3px;
+    }
+
+    .terminal-content::-webkit-scrollbar-thumb:hover {
+      background: #4a4642;
+    }
+
+    .terminal-line {
+      margin-bottom: 8px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .terminal-line .timestamp {
+      color: #6a6560;
+      margin-right: 8px;
+    }
+
+    .terminal-line.success { color: #7c9885; }
+    .terminal-line.info { color: #8ba896; }
+    .terminal-line.warning { color: #b8876b; }
+    .terminal-line.error { color: #c47864; }
+
+    /* Preview */
+    .preview-section {
+      background: #2a2623;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #3a3632;
+      display: none;
+    }
+
+    .preview-section.visible {
+      display: block;
     }
 
     .preview-header {
-      padding: 8px;
-      background: #f0f0f0;
-      font-size: 10px;
+      padding: 12px 16px;
+      background: #1a1816;
+      font-size: 11px;
       font-weight: 500;
-      color: #666;
-      border-bottom: 1px solid #ddd;
+      color: #a39e98;
+      border-bottom: 1px solid #3a3632;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .preview-container {
       position: relative;
-      height: 120px;
+      height: 140px;
       overflow: hidden;
-      background: white;
+      background: #1a1816;
     }
 
     .preview-image {
@@ -242,33 +398,31 @@
       align-items: center;
       justify-content: center;
       height: 100%;
-      color: #999;
+      color: #6a6560;
       font-size: 11px;
-      background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
     }
 
-    /* Scanner Animation */
     .scanner {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, 
-        transparent 0%, 
-        rgba(0, 255, 100, 0.3) 20%, 
-        rgba(0, 255, 100, 0.8) 50%, 
-        rgba(0, 255, 100, 0.3) 80%, 
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(124, 152, 133, 0.3) 20%,
+        rgba(124, 152, 133, 0.8) 50%,
+        rgba(124, 152, 133, 0.3) 80%,
         transparent 100%
       );
-      box-shadow: 0 0 10px rgba(0, 255, 100, 0.6);
+      box-shadow: 0 0 12px rgba(124, 152, 133, 0.6);
       animation: scan 2s ease-in-out infinite;
       display: none;
     }
 
     @keyframes scan {
       0% { transform: translateY(0); }
-      50% { transform: translateY(117px); }
+      50% { transform: translateY(137px); }
       100% { transform: translateY(0); }
     }
 
@@ -276,173 +430,58 @@
       display: block;
     }
 
-    /* Terminal Log */
-    .terminal-section {
-      display: none;
-      margin: 12px 0;
-      border: 1px solid #333;
-      border-radius: 4px;
-      background: #1a1a1a;
-      color: #00ff00;
-      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-      font-size: 9px;
-      overflow: hidden;
+    /* Examples */
+    .examples {
+      padding: 20px;
+      background: #2a2623;
+      border-radius: 12px;
+      border: 1px solid #3a3632;
     }
 
-    .terminal-header {
-      padding: 6px 8px;
-      background: #2d2d2d;
-      color: #ccc;
-      border-bottom: 1px solid #444;
-      font-size: 9px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .terminal-dots {
-      display: flex;
-      gap: 3px;
-    }
-
-    .terminal-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-
-    .terminal-dot.red { background: #ff5f56; }
-    .terminal-dot.yellow { background: #ffbd2e; }
-    .terminal-dot.green { background: #27ca3f; }
-
-    .terminal-content {
-      height: 150px;
-      padding: 8px;
-      overflow-y: auto;
-      line-height: 1.3;
-      white-space: pre-wrap;
-    }
-
-    .terminal-content::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .terminal-content::-webkit-scrollbar-track {
-      background: #2d2d2d;
-    }
-
-    .terminal-content::-webkit-scrollbar-thumb {
-      background: #555;
-      border-radius: 2px;
-    }
-
-    .terminal-line {
-      margin-bottom: 2px;
-      animation: typewriter 0.5s ease-in;
-    }
-
-    .terminal-line-header {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-
-    .terminal-message {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .terminal-label {
-      border: 1px solid #444;
-      border-radius: 3px;
-      padding: 1px 4px;
+    .example-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: #c4bfba;
+      margin-bottom: 12px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      font-size: 8px;
-      color: #ccc;
-      background: rgba(255, 255, 255, 0.05);
     }
 
-    .terminal-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-left: 16px;
-      margin-top: 2px;
+    .example-link {
+      display: block;
+      padding: 10px 14px;
+      background: #1a1816;
+      border: 1px solid #3a3632;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #a39e98;
+      font-size: 12px;
+      margin-bottom: 8px;
+      transition: all 0.2s ease;
     }
 
-    .terminal-meta-item {
-      border: 1px solid #333;
-      border-radius: 3px;
-      padding: 1px 4px;
-      font-size: 8px;
-      color: #9fff9f;
-      background: rgba(0, 255, 0, 0.05);
+    .example-link:hover {
+      background: #201e1c;
+      border-color: #7c9885;
+      color: #e8e6e3;
+      transform: translateX(4px);
     }
 
-    .terminal-line .timestamp {
-      color: #888;
-      font-size: 9px;
+    .example-link:last-child {
+      margin-bottom: 0;
     }
-
-    .terminal-line.warning .terminal-meta-item {
-      color: #ffc97a;
-      border-color: #8a6d2f;
-      background: rgba(255, 166, 0, 0.08);
-    }
-
-    .terminal-line.error .terminal-meta-item {
-      color: #ff9f9f;
-      border-color: #a14a4a;
-      background: rgba(255, 0, 0, 0.08);
-    }
-
-    @keyframes typewriter {
-      from { opacity: 0; transform: translateX(-5px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-
-    .terminal-line.success { color: #00ff00; }
-    .terminal-line.info { color: #00bfff; }
-    .terminal-line.warning { color: #ffa500; }
-    .terminal-line.error { color: #ff6b6b; }
-    .terminal-line.timestamp { color: #888; }
-
-    /* Updated status section */
-    .status.enhanced {
-      padding: 6px 8px;
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .status-icon {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 8px;
-      font-weight: bold;
-    }
-
-    .status.info .status-icon { background: #18a0fb; }
-    .status.success .status-icon { background: #27ca3f; }
-    .status.error .status-icon { background: #ff6b6b; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div>
-      <h1>🎨 Web to Figma Converter</h1>
-      <div class="subtitle">Maximum Quality - 95-100% Accuracy</div>
+    <!-- Header -->
+    <div class="header">
+      <h1>Web to Figma</h1>
+      <div class="subtitle">Maximum Quality • 95-100% Accuracy</div>
     </div>
 
-    <div>
+    <!-- Input Section -->
+    <div class="input-section">
       <label for="url">Website URL</label>
       <input
         type="url"
@@ -450,27 +489,36 @@
         placeholder="https://example.com"
         value="https://stripe.com"
       />
+
+      <div class="button-group">
+        <button id="import-btn">Start Import</button>
+        <button class="cancel" id="cancel-btn">Cancel</button>
+      </div>
     </div>
 
-    <button id="import-btn">Import Website</button>
-    
-    <div class="progress-bar" id="progress-bar">
-      <div class="progress-bar-fill" id="progress-fill"></div>
+    <!-- Progress Section -->
+    <div class="progress-section" id="progress-section">
+      <div class="progress-header">
+        <span class="progress-label" id="progress-label">Initializing...</span>
+        <span class="progress-percent" id="progress-percent">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
     </div>
-    
-    <div class="status enhanced" id="status">
-      <div class="status-icon" id="status-icon"></div>
+
+    <!-- Status -->
+    <div class="status" id="status">
+      <div class="status-icon" id="status-icon">i</div>
       <div class="status-text" id="status-text"></div>
     </div>
 
-    <!-- Website Preview Section -->
+    <!-- Preview Section -->
     <div class="preview-section" id="preview-section">
-      <div class="preview-header">
-        Website Preview
-      </div>
+      <div class="preview-header">Website Preview</div>
       <div class="preview-container">
         <div class="preview-placeholder" id="preview-placeholder">
-          Loading website preview...
+          Capturing screenshot...
         </div>
         <img class="preview-image" id="preview-image" style="display: none;">
         <div class="scanner" id="scanner"></div>
@@ -489,38 +537,28 @@
       </div>
       <div class="terminal-content" id="terminal-content"></div>
     </div>
-    
+
+    <!-- Quick Examples -->
     <div class="examples">
-      <div class="example-title">Quick Test Sites:</div>
-      <a href="#" class="example-link" data-url="https://stripe.com">Stripe - Effects Test</a>
-      <a href="#" class="example-link" data-url="https://tailwindcss.com">Tailwind - Layout Test</a>
-      <a href="#" class="example-link" data-url="https://github.com">GitHub - Typography Test</a>
-    </div>
-    
-    <div class="examples">
-      <div class="example-title">✨ Features:</div>
-      <ul class="feature-list">
-        <li>✓ Font extraction & mapping</li>
-        <li>✓ Element screenshots</li>
-        <li>✓ Advanced gradients & effects</li>
-        <li>✓ Auto-layout support</li>
-        <li>✓ Design tokens</li>
-        <li>✓ 95-100% accuracy</li>
-      </ul>
+      <div class="example-title">Quick Test Sites</div>
+      <a href="#" class="example-link" data-url="https://stripe.com">Stripe</a>
+      <a href="#" class="example-link" data-url="https://tailwindcss.com">Tailwind CSS</a>
+      <a href="#" class="example-link" data-url="https://github.com">GitHub</a>
     </div>
   </div>
-  
+
   <script>
     const urlInput = document.getElementById('url');
     const importBtn = document.getElementById('import-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
     const statusDiv = document.getElementById('status');
     const statusIcon = document.getElementById('status-icon');
     const statusText = document.getElementById('status-text');
-    const progressBar = document.getElementById('progress-bar');
+    const progressSection = document.getElementById('progress-section');
+    const progressLabel = document.getElementById('progress-label');
+    const progressPercent = document.getElementById('progress-percent');
     const progressFill = document.getElementById('progress-fill');
     const exampleLinks = document.querySelectorAll('.example-link');
-
-    // Preview and terminal elements
     const previewSection = document.getElementById('preview-section');
     const previewImage = document.getElementById('preview-image');
     const previewPlaceholder = document.getElementById('preview-placeholder');
@@ -528,224 +566,84 @@
     const terminalSection = document.getElementById('terminal-section');
     const terminalContent = document.getElementById('terminal-content');
 
-    // Always use maximum quality mode
-    const selectedMode = 'maximum';
-    const timelineStats = {
-      startTime: null,
-      nodesProcessed: 0,
-      imagesAssembled: 0
-    };
-    const stageLabels = {
-      capturing_page: 'Capturing Page',
-      scraping_dom: 'Scraping DOM',
-      streaming_nodes: 'Streaming Nodes',
-      processing_images: 'Processing Images',
-      streaming_images: 'Streaming Images'
-    };
-    
-    // Terminal logging functionality
-    function resetTimelineStats() {
-      timelineStats.startTime = null;
-      timelineStats.nodesProcessed = 0;
-      timelineStats.imagesAssembled = 0;
-    }
+    let currentWebSocket = null;
+    let isImporting = false;
+    let lastKeepAliveLog = 0;
+    let cachedServerPort = null;
 
-    function beginTimelineSession() {
-      resetTimelineStats();
-      timelineStats.startTime = Date.now();
-    }
-
-    function formatDuration(ms) {
-      if (!ms || ms < 0) return '0.0s';
-      const totalSeconds = Math.floor(ms / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      const tenths = Math.floor((ms % 1000) / 100);
-      if (minutes > 0) {
-        return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-      }
-      return `${seconds}.${tenths}s`;
-    }
-
-    function getElapsedSinceStart() {
-      if (!timelineStats.startTime) return null;
-      return formatDuration(Date.now() - timelineStats.startTime);
-    }
-
-    function addTerminalLog(message, type = 'info', options = {}) {
-      const { meta = null, label = null } = options;
-      const timestamp = new Date().toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
+    // Example link clicks
+    exampleLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        urlInput.value = link.dataset.url;
       });
-      
+    });
+
+    // Cancel button
+    cancelBtn.addEventListener('click', () => {
+      if (currentWebSocket) {
+        currentWebSocket.close();
+        currentWebSocket = null;
+      }
+      resetUI();
+      showStatus('Import cancelled', 'error');
+      addTerminalLog('⚠ Import cancelled by user', 'warning');
+    });
+
+    function resetUI() {
+      isImporting = false;
+      lastKeepAliveLog = 0;
+      importBtn.disabled = false;
+      importBtn.textContent = 'Start Import';
+      cancelBtn.classList.remove('visible');
+      progressSection.classList.remove('visible');
+      progressFill.style.width = '0%';
+      scanner.classList.remove('active');
+    }
+
+    function updateProgress(percent, label) {
+      progressFill.style.width = percent + '%';
+      progressPercent.textContent = Math.round(percent) + '%';
+      if (label) {
+        progressLabel.textContent = label;
+      }
+    }
+
+    function addTerminalLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
       const line = document.createElement('div');
       line.className = `terminal-line ${type}`;
-      const header = document.createElement('div');
-      header.className = 'terminal-line-header';
+      line.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
 
-      const timestampSpan = document.createElement('span');
-      timestampSpan.className = 'timestamp';
-      timestampSpan.textContent = `[${timestamp}]`;
-      header.appendChild(timestampSpan);
-
-      if (label) {
-        const badge = document.createElement('span');
-        badge.className = 'terminal-label';
-        badge.textContent = label;
-        header.appendChild(badge);
-      }
-
-      const messageSpan = document.createElement('span');
-      messageSpan.className = 'terminal-message';
-      messageSpan.textContent = message;
-      header.appendChild(messageSpan);
-
-      line.appendChild(header);
-
-      if (meta && Object.keys(meta).length > 0) {
-        const metaRow = document.createElement('div');
-        metaRow.className = 'terminal-meta';
-
-        Object.entries(meta).forEach(([key, value]) => {
-          if (value === undefined || value === null || value === '') return;
-          const metaItem = document.createElement('span');
-          metaItem.className = 'terminal-meta-item';
-          metaItem.textContent = `${key}: ${value}`;
-          metaRow.appendChild(metaItem);
-        });
-
-        if (metaRow.children.length > 0) {
-          line.appendChild(metaRow);
-        }
-      }
-      
       terminalContent.appendChild(line);
       terminalContent.scrollTop = terminalContent.scrollHeight;
     }
-    
+
     function clearTerminal() {
       terminalContent.innerHTML = '';
-      resetTimelineStats();
-    }
-    
-    function handleRuntimeProgress(payload = {}) {
-      const hasUsefulInfo =
-        payload.stage ||
-        typeof payload.nodesProcessed === 'number' ||
-        typeof payload.current === 'number' ||
-        typeof payload.total === 'number';
-
-      if (!hasUsefulInfo) {
-        return;
-      }
-
-      const meta = {};
-      let logType = 'info';
-      let message = 'Figma runtime reported progress';
-
-      if (payload.stage) {
-        const stageName = stageLabels[payload.stage] || payload.stage;
-        meta.Stage = stageName;
-
-        if (typeof payload.current === 'number' && typeof payload.total === 'number') {
-          meta.Batch = `${payload.current}/${payload.total}`;
-        }
-
-        message =
-          payload.stage === 'processing_images'
-            ? 'Plugin is processing captured image buffers'
-            : payload.stage === 'streaming_images'
-              ? 'Plugin is streaming image chunks into Figma'
-              : `Plugin stage: ${stageName}`;
-      }
-
-      if (typeof payload.nodesProcessed === 'number') {
-        timelineStats.nodesProcessed = payload.nodesProcessed;
-        meta['Nodes created'] = payload.nodesProcessed.toLocaleString();
-        message = `Figma created ${payload.nodesProcessed.toLocaleString()} nodes`;
-        logType = 'success';
-      }
-
-      const elapsed = getElapsedSinceStart();
-      if (elapsed) {
-        meta.Elapsed = elapsed;
-      }
-
-      addTerminalLog(message, logType, {
-        meta,
-        label: 'Figma Runtime'
-      });
     }
 
-    function handleImageAssembled(data = {}) {
-      if (typeof data.nodesProcessed === 'number') {
-        timelineStats.nodesProcessed = data.nodesProcessed;
-      }
-
-      timelineStats.imagesAssembled += 1;
-      const meta = {
-        Node: data.nodeId || 'unknown',
-        'Images assembled': timelineStats.imagesAssembled.toString(),
-        'Nodes created':
-          timelineStats.nodesProcessed > 0
-            ? timelineStats.nodesProcessed.toLocaleString()
-            : undefined
-      };
-
-      const elapsed = getElapsedSinceStart();
-      if (elapsed) {
-        meta.Elapsed = elapsed;
-      }
-
-      addTerminalLog('Image node assembled inside Figma runtime', 'success', {
-        meta,
-        label: 'Image Stream'
-      });
-    }
-
-    function logImportCompletion() {
-      const meta = {
-        'Nodes created':
-          timelineStats.nodesProcessed > 0
-            ? timelineStats.nodesProcessed.toLocaleString()
-            : '—'
-      };
-
-      if (timelineStats.imagesAssembled > 0) {
-        meta['Images assembled'] = timelineStats.imagesAssembled.toString();
-      }
-
-      const elapsed = getElapsedSinceStart();
-      if (elapsed) {
-        meta.Elapsed = elapsed;
-      }
-
-      addTerminalLog('Figma runtime finished creating nodes', 'success', {
-        meta,
-        label: 'Figma Runtime'
-      });
-    }
-    
     function showPreview(url) {
-      previewSection.style.display = 'block';
-      terminalSection.style.display = 'block';
-      
-      // Start scanner animation
+      previewSection.classList.add('visible');
+      terminalSection.classList.add('visible');
       scanner.classList.add('active');
-      
-      // Load website preview screenshot
+
       setTimeout(async () => {
         try {
-          const serverPort = await discoverServerPort();
+          const serverPort = await getServerPort();
           const screenshotUrl = `http://localhost:${serverPort}/screenshot?url=${encodeURIComponent(url)}`;
           const response = await fetch(screenshotUrl);
           const data = await response.json();
-          
-          if (data.screenshot) {
-            previewImage.src = data.screenshot;
+
+          const screenshotSrc = data.screenshot?.src ?? data.screenshot;
+          if (screenshotSrc) {
+            previewImage.src = screenshotSrc;
             previewImage.style.display = 'block';
             previewPlaceholder.style.display = 'none';
             addTerminalLog('✓ Website preview captured', 'success');
@@ -755,104 +653,95 @@
         }
       }, 1000);
     }
-    
-    function hidePreview() {
-      previewSection.style.display = 'none';
-      terminalSection.style.display = 'none';
-      scanner.classList.remove('active');
-      previewImage.style.display = 'none';
-      previewPlaceholder.style.display = 'flex';
-      clearTerminal();
+
+    async function getServerPort() {
+      if (cachedServerPort !== null) {
+        return cachedServerPort;
+      }
+      cachedServerPort = await discoverServerPort();
+      return cachedServerPort;
     }
 
-    // Example link clicks
-    exampleLinks.forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        urlInput.value = link.dataset.url;
-      });
-    });
-    
-    // Discover server port
     async function discoverServerPort() {
-      const possiblePorts = [3001, 3000, 3002, 3003, 3004]; // Try 3001 first
-      
+      const possiblePorts = [3000, 3001, 3002, 3003, 3004];
+
       for (const port of possiblePorts) {
         try {
           const response = await fetch(`http://localhost:${port}/health`, {
             method: 'GET',
             signal: AbortSignal.timeout(1000)
           });
-          
+
           if (response.ok) {
+            cachedServerPort = port;
             return port;
           }
         } catch (e) {
           // Port not available, try next
         }
       }
-      
+
       throw new Error('No running server found on ports 3000-3004');
     }
 
     // Import button
     importBtn.addEventListener('click', async () => {
       const url = urlInput.value.trim();
-      
+
       if (!url) {
         showStatus('Please enter a URL', 'error');
         return;
       }
-      
+
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         showStatus('URL must start with http:// or https://', 'error');
         return;
       }
-      
+
+      isImporting = true;
       importBtn.disabled = true;
       importBtn.textContent = 'Importing...';
-      progressBar.style.display = 'block';
-      progressFill.style.width = '0%';
-      
-      // Show preview and terminal
+      cancelBtn.classList.add('visible');
+      progressSection.classList.add('visible');
+      updateProgress(0, 'Initializing...');
+
       clearTerminal();
-      beginTimelineSession();
       showPreview(url);
-      
-      addTerminalLog('🚀 Starting web-to-figma conversion (Maximum Quality)', 'info');
-      addTerminalLog(`📄 Target URL: ${url}`, 'info');
-      
+
+      addTerminalLog('🚀 Starting web-to-figma conversion', 'info');
+      addTerminalLog(`📄 Target: ${url}`, 'info');
+
       showStatus('Discovering server...', 'info');
-      
+
       let serverPort;
       try {
-        serverPort = await discoverServerPort();
-        showStatus(`Connected to server on port ${serverPort}`, 'info');
+        serverPort = await getServerPort();
+        showStatus(`Connected to server on port ${serverPort}`, 'success');
+        addTerminalLog(`✓ Connected to server on port ${serverPort}`, 'success');
       } catch (error) {
         showStatus('Server not found. Please start the scraper server first.', 'error');
-        importBtn.disabled = false;
-        importBtn.textContent = 'Import Website';
-        progressBar.style.display = 'none';
+        addTerminalLog('✗ Server connection failed', 'error');
+        resetUI();
         return;
       }
-      
+
       // Connect via WebSocket
       try {
         const ws = new WebSocket(`ws://localhost:${serverPort}/ws`);
-        
+        currentWebSocket = ws;
+
         ws.onopen = () => {
-          showStatus(`Extracting ${url} (maximum quality)...`, 'info');
-          progressFill.style.width = '10%';
-          // Send server port info to plugin
-          parent.postMessage({ 
-            pluginMessage: { 
-              type: 'server_config', 
-              serverPort: serverPort 
-            } 
+          updateProgress(5, 'Connected to server');
+          showStatus('Extracting website...', 'info');
+          parent.postMessage({
+            pluginMessage: {
+              type: 'server_config',
+              serverPort: serverPort
+            }
           }, '*');
-          ws.send(JSON.stringify({ url, mode: selectedMode }));
+          ws.send(JSON.stringify({ url, mode: 'maximum' }));
         };
-        
+
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data);
 
@@ -862,107 +751,88 @@
 
           switch (message.type) {
             case 'TOKENS':
-              progressFill.style.width = '20%';
-              showStatus('Creating tokens...', 'info');
+              updateProgress(20, 'Creating tokens');
+              addTerminalLog('✓ Tokens extracted', 'success');
               forward();
               break;
 
             case 'FONTS':
-              progressFill.style.width = '30%';
-              showStatus(`Loading fonts (${message.payload?.length || 0})`, 'info');
+              updateProgress(30, `Loading ${message.payload?.length || 0} fonts`);
+              addTerminalLog(`✓ ${message.payload?.length || 0} fonts loaded`, 'success');
               forward();
               break;
 
             case 'NODES':
-              showStatus('Streaming nodes...', 'info');
+              updateProgress(50, 'Streaming nodes');
               forward();
               break;
 
             case 'IMAGE_CHUNK':
-              showStatus('Receiving large image data...', 'info');
               forward();
+              break;
+
+            case 'LOG':
+              // Display log message in terminal
+              const log = message.payload;
+              if (log && log.message) {
+                const levelMap = {
+                  'info': 'info',
+                  'success': 'success',
+                  'warning': 'warning',
+                  'error': 'error'
+                };
+                const level = levelMap[log.level] || 'info';
+                addTerminalLog(log.message, level);
+              }
               break;
 
             case 'PROGRESS':
               const stage = message.payload?.stage;
-              if (stage === 'capturing_page') {
-                progressFill.style.width = '5%';
-                showStatus(`Capturing ${url}...`, 'info');
-              } else if (stage === 'scraping_dom') {
-                progressFill.style.width = '15%';
-                showStatus('Scraping DOM structure...', 'info');
-              } else if (stage === 'streaming_nodes') {
-                const nodesCurrent = message.payload?.current || 0;
-                const nodesTotal = message.payload?.total || 0;
-                const dynamic = nodesTotal
-                  ? Math.min(30, Math.round((nodesCurrent / nodesTotal) * 30))
-                  : 0;
-                const percent = 25 + dynamic;
-                progressFill.style.width = percent + '%';
-              } else if (stage === 'processing_images') {
+              const progressMessage = message.payload?.message;
+
+              // Update terminal with progress message
+              if (progressMessage) {
+                addTerminalLog(progressMessage, 'info');
+              }
+
+              if (stage === 'heartbeat') {
+                const now = Date.now();
+                if (now - lastKeepAliveLog > 15000) {
+                  addTerminalLog('⏳ Extraction still running...', 'info');
+                  lastKeepAliveLog = now;
+                }
+              }
+
+              if (stage === 'processing_images') {
                 const percent = 30 + Math.min(40, Math.round((message.payload.current / message.payload.total) * 40));
-                progressFill.style.width = percent + '%';
-                showStatus(`Processing images ${message.payload.current}/${message.payload.total}`, 'info');
+                updateProgress(percent, `Processing images ${message.payload.current}/${message.payload.total}`);
               } else if (stage === 'streaming_images') {
                 const percent = 70 + Math.min(20, Math.round((message.payload.current / message.payload.total) * 20));
-                progressFill.style.width = percent + '%';
-                showStatus(`Streaming images ${message.payload.current}/${message.payload.total}`, 'info');
-              } else if (typeof message.payload?.nodesProcessed === 'number') {
-                const percent = Math.min(95, 50 + Math.round(message.payload.nodesProcessed));
-                progressFill.style.width = percent + '%';
+                updateProgress(percent, `Streaming images ${message.payload.current}/${message.payload.total}`);
+              } else if (stage === 'streaming_nodes') {
+                const percent = 50 + Math.min(20, Math.round((message.payload.current / message.payload.total) * 20));
+                updateProgress(percent, `Streaming nodes ${message.payload.current}/${message.payload.total}`);
               }
               forward();
               break;
 
             case 'COMPLETE':
-              progressFill.style.width = '100%';
+              updateProgress(100, 'Complete!');
               showStatus('✓ Import complete!', 'success');
+              addTerminalLog('✓ Import complete!', 'success');
               forward();
               setTimeout(() => {
-                importBtn.disabled = false;
-                importBtn.textContent = 'Import Website';
-                progressBar.style.display = 'none';
+                resetUI();
               }, 2000);
               ws.close();
               break;
 
             case 'ERROR':
               showStatus('Error: ' + (message.payload?.message || message.error || 'Unknown error'), 'error');
+              addTerminalLog(`✗ Error: ${message.payload?.message || message.error}`, 'error');
               forward();
-              importBtn.disabled = false;
-              importBtn.textContent = 'Import Website';
-              progressBar.style.display = 'none';
+              resetUI();
               ws.close();
-              break;
-
-            case 'full_page':
-            case 'tokens':
-            case 'node_chunk':
-            case 'complete':
-            case 'error':
-              forward();
-              if (message.type === 'node_chunk' && message.progress) {
-                const percent = (message.progress.current / message.progress.total * 70) + 20;
-                progressFill.style.width = percent + '%';
-                showStatus(`Importing nodes: ${message.progress.current}/${message.progress.total}`, 'info');
-              }
-              if (message.type === 'complete') {
-                progressFill.style.width = '100%';
-                showStatus('✓ Import complete!', 'success');
-                setTimeout(() => {
-                  importBtn.disabled = false;
-                  importBtn.textContent = 'Import Website';
-                  progressBar.style.display = 'none';
-                }, 2000);
-                ws.close();
-              }
-              if (message.type === 'error') {
-                showStatus('Error: ' + message.error, 'error');
-                importBtn.disabled = false;
-                importBtn.textContent = 'Import Website';
-                progressBar.style.display = 'none';
-                ws.close();
-              }
               break;
 
             default:
@@ -970,68 +840,35 @@
               break;
           }
         };
-        
+
         ws.onerror = () => {
-          showStatus('Connection failed. Is the server running?', 'error');
-          importBtn.disabled = false;
-          importBtn.textContent = 'Import Website';
-          progressBar.style.display = 'none';
+          showStatus('Connection failed', 'error');
+          addTerminalLog('✗ WebSocket connection failed', 'error');
+          resetUI();
         };
-        
+
         ws.onclose = () => {
-          if (importBtn.disabled) {
+          if (isImporting) {
             showStatus('Connection closed', 'error');
-            importBtn.disabled = false;
-            importBtn.textContent = 'Import Website';
-            progressBar.style.display = 'none';
+            resetUI();
           }
+          currentWebSocket = null;
         };
-        
+
       } catch (error) {
         showStatus('Failed to connect: ' + error.message, 'error');
-        importBtn.disabled = false;
-        importBtn.textContent = 'Import Website';
-        progressBar.style.display = 'none';
+        addTerminalLog(`✗ Connection error: ${error.message}`, 'error');
+        resetUI();
       }
     });
-    
+
     function showStatus(message, type) {
       statusText.textContent = message;
-      statusDiv.className = `status enhanced ${type}`;
-      statusDiv.style.display = 'flex';
-      
-      // Update status icon
+      statusDiv.className = `status ${type} visible`;
+
       const icons = { info: 'i', success: '✓', error: '✗', warning: '⚠' };
       statusIcon.textContent = icons[type] || 'i';
-      
-      // Add to terminal log
-      if (terminalSection.style.display === 'block') {
-        addTerminalLog(message, type);
-      }
     }
-    
-    // Listen for messages from plugin
-    window.onmessage = (event) => {
-      const message = event.data?.pluginMessage;
-      if (!message || !message.type) {
-        return;
-      }
-
-      switch (message.type) {
-        case 'import_complete':
-          showStatus('✓ All nodes created in Figma!', 'success');
-          logImportCompletion();
-          break;
-        case 'PROGRESS_UPDATE':
-          handleRuntimeProgress(message);
-          break;
-        case 'IMAGE_ASSEMBLED':
-          handleImageAssembled(message);
-          break;
-        default:
-          break;
-      }
-    };
   </script>
 </body>
 </html>

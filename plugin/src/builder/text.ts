@@ -17,19 +17,23 @@ export class TextProcessor {
   async createTextNode(item: DrawableItem): Promise<TextNode> {
     const textNode = figma.createText();
     
-    // Set content first
-    textNode.characters = item.element.text || '';
+    // Extract text content from enhanced text structure or fallback
+    const textContent = this.extractTextContent(item);
+    textNode.characters = textContent;
     
-    // Load and apply font
+    // Load and apply font - use textMetrics if available for better accuracy
     const fontName = await this.resolveFont(item);
     await this.ensureFontLoaded(fontName);
     textNode.fontName = fontName;
     
-    // Apply typography properties
+    // Apply typography properties using enhanced textMetrics when available
     await this.applyTypography(textNode, item);
     
     // Apply text styling
     await this.applyTextStyling(textNode, item);
+    
+    // Apply browser-accurate positioning and sizing using textMetrics
+    await this.applyTextMetricsPositioning(textNode, item);
     
     // Handle inline text ranges if present
     if (item.element.textRanges) {
@@ -40,13 +44,77 @@ export class TextProcessor {
   }
 
   /**
+   * Extract text content from enhanced text structure or fallback
+   */
+  private extractTextContent(item: DrawableItem): string {
+    // Use new enhanced text structure if available
+    if (item.element.text && typeof item.element.text === 'object' && 'rawText' in item.element.text) {
+      return (item.element.text as any).rawText || '';
+    }
+    
+    // Fallback to legacy text field
+    if (typeof item.element.text === 'string') {
+      return item.element.text;
+    }
+    
+    return '';
+  }
+
+  /**
+   * Apply browser-accurate positioning and sizing using textMetrics
+   */
+  private async applyTextMetricsPositioning(textNode: TextNode, item: DrawableItem): Promise<void> {
+    const textMetrics = (item.element as any).textMetrics;
+    
+    if (!textMetrics) {
+      return; // No enhanced metrics available, skip
+    }
+    
+    try {
+      // Apply browser-accurate line height
+      if (textMetrics.lineHeightPx) {
+        textNode.lineHeight = { value: textMetrics.lineHeightPx, unit: 'PIXELS' };
+      }
+      
+      // Apply text alignment from browser computation
+      if (textMetrics.align) {
+        textNode.textAlignHorizontal = this.mapTextAlign(textMetrics.align);
+      }
+      
+      // Apply advanced text layout properties if supported
+      if (textMetrics.wrapMode && textMetrics.wrapMode !== 'normal') {
+        // Note: Figma has limited support for text wrapping modes
+        // This could be expanded based on Figma API capabilities
+        console.log(`Text wrap mode: ${textMetrics.wrapMode} (limited Figma support)`);
+      }
+      
+      // Log browser-accurate measurements for debugging
+      console.log(`Text metrics for "${textNode.characters.substring(0, 20)}...":`, {
+        lineBoxes: textMetrics.lineBoxes?.length || 0,
+        baseline: textMetrics.baseline,
+        ascent: textMetrics.ascent,
+        descent: textMetrics.descent,
+        lineHeightPx: textMetrics.lineHeightPx,
+        align: textMetrics.align,
+        wrapMode: textMetrics.wrapMode
+      });
+      
+    } catch (error) {
+      console.warn('Failed to apply text metrics positioning:', error);
+    }
+  }
+
+  /**
    * Resolve web font to best available Figma font
    */
   private async resolveFont(item: DrawableItem): Promise<FontName> {
     const styles = item.element.styles;
-    const fontFamily = styles.fontFamily || 'Arial, sans-serif';
-    const fontWeight = styles.fontWeight || '400';
-    const fontStyle = styles.fontStyle || 'normal';
+    const textMetrics = (item.element as any).textMetrics;
+    
+    // Use textMetrics for more accurate font information if available
+    const fontFamily = textMetrics?.font?.family || styles.fontFamily || 'Arial, sans-serif';
+    const fontWeight = textMetrics?.font?.weight || styles.fontWeight || '400';
+    const fontStyle = textMetrics?.font?.style || styles.fontStyle || 'normal';
     
     const cacheKey = `${fontFamily}:${fontWeight}:${fontStyle}`;
     
@@ -261,38 +329,44 @@ export class TextProcessor {
    */
   private async applyTypography(textNode: TextNode, item: DrawableItem): Promise<void> {
     const styles = item.element.styles;
+    const textMetrics = (item.element as any).textMetrics;
     
-    // Font size
-    if (styles.fontSize) {
-      const size = this.parseCSSValue(styles.fontSize, 'px');
-      textNode.fontSize = Math.max(1, size);
-    }
+    // Font size - prioritize textMetrics for accuracy
+    const fontSize = textMetrics?.font?.size || (styles.fontSize ? this.parseCSSValue(styles.fontSize, 'px') : 16);
+    textNode.fontSize = Math.max(1, fontSize);
     
-    // Line height
-    if (styles.lineHeight && styles.lineHeight !== 'normal') {
+    // Line height - use browser-accurate measurements when available
+    if (textMetrics?.lineHeightPx) {
+      textNode.lineHeight = { value: textMetrics.lineHeightPx, unit: 'PIXELS' };
+    } else if (styles.lineHeight && styles.lineHeight !== 'normal') {
       const lineHeight = this.parseLineHeight(styles.lineHeight, textNode.fontSize);
       textNode.lineHeight = lineHeight;
     }
     
-    // Letter spacing
-    if (styles.letterSpacing && styles.letterSpacing !== 'normal') {
-      const spacing = this.parseCSSValue(styles.letterSpacing, 'px');
-      textNode.letterSpacing = { value: spacing, unit: 'PIXELS' };
+    // Letter spacing - prioritize textMetrics
+    const letterSpacing = textMetrics?.spacing?.letterSpacing ?? 
+      (styles.letterSpacing && styles.letterSpacing !== 'normal' ? this.parseCSSValue(styles.letterSpacing, 'px') : 0);
+    
+    if (letterSpacing !== 0) {
+      textNode.letterSpacing = { value: letterSpacing, unit: 'PIXELS' };
     }
     
-    // Text alignment
-    if (styles.textAlign) {
-      textNode.textAlignHorizontal = this.mapTextAlign(styles.textAlign);
+    // Text alignment - prioritize textMetrics for browser-accurate alignment
+    const textAlign = textMetrics?.layout?.align || styles.textAlign;
+    if (textAlign) {
+      textNode.textAlignHorizontal = this.mapTextAlign(textAlign);
     }
     
-    // Text transform
-    if (styles.textTransform) {
-      textNode.textCase = this.mapTextTransform(styles.textTransform);
+    // Text transform - use textMetrics if available
+    const textTransform = textMetrics?.effects?.transform || styles.textTransform;
+    if (textTransform) {
+      textNode.textCase = this.mapTextTransform(textTransform);
     }
     
-    // Text decoration
-    if (styles.textDecoration) {
-      textNode.textDecoration = this.mapTextDecoration(styles.textDecoration);
+    // Text decoration - prioritize textMetrics
+    const textDecoration = textMetrics?.effects?.decoration?.line || styles.textDecoration;
+    if (textDecoration) {
+      textNode.textDecoration = this.mapTextDecoration(textDecoration);
     }
     
     // Paragraph spacing
@@ -307,10 +381,12 @@ export class TextProcessor {
    */
   private async applyTextStyling(textNode: TextNode, item: DrawableItem): Promise<void> {
     const styles = item.element.styles;
+    const textMetrics = (item.element as any).textMetrics;
     
-    // Text color
-    if (styles.color) {
-      const color = this.parseColor(styles.color);
+    // Text color - prioritize textMetrics for browser-accurate color
+    const textColor = textMetrics?.effects?.color || styles.color;
+    if (textColor) {
+      const color = this.parseColor(textColor);
       if (color) {
         textNode.fills = [{
           type: 'SOLID',

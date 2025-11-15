@@ -4,6 +4,8 @@ export interface StreamPayload {
     nodes: IRNode[];
     fonts?: any[];
     tokens?: any;
+    stackingContexts?: any[];
+    paintOrder?: string[];
 }
 export declare class StreamController {
     private readonly ws;

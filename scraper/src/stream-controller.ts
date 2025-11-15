@@ -13,6 +13,8 @@ export interface StreamPayload {
   nodes: IRNode[];
   fonts?: any[];
   tokens?: any;
+  stackingContexts?: any[];
+  paintOrder?: string[];
 }
 
 export class StreamController {
@@ -23,7 +25,7 @@ export class StreamController {
   constructor(private readonly ws: WebSocket) {}
 
   async streamExtractedPage(payload: StreamPayload): Promise<void> {
-    const { nodes, fonts = [], tokens } = payload;
+    const { nodes, fonts = [], tokens, stackingContexts, paintOrder } = payload;
 
     try {
       this.totalNodes = nodes.length;
@@ -42,6 +44,24 @@ export class StreamController {
         this.send({
           type: 'FONTS',
           payload: fonts,
+          sequenceNumber: this.sequenceNumber++
+        });
+      }
+
+      // Send stacking contexts if available
+      if (stackingContexts && stackingContexts.length > 0) {
+        this.send({
+          type: 'STACKING_CONTEXTS',
+          payload: stackingContexts,
+          sequenceNumber: this.sequenceNumber++
+        });
+      }
+
+      // Send paint order if available
+      if (paintOrder && paintOrder.length > 0) {
+        this.send({
+          type: 'PAINT_ORDER',
+          payload: paintOrder,
           sequenceNumber: this.sequenceNumber++
         });
       }

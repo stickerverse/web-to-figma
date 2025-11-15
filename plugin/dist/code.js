@@ -77,10 +77,19 @@ class HierarchyBuilder {
             imageNodes: 0,
             textNodes: 0,
         };
+        this.stackingContexts = new Map();
+        this.paintOrderIndex = 0;
     }
     async buildHierarchy(flatNodes, rootParent, createNodeFn) {
-        console.log(`Building hierarchy from ${flatNodes.length} nodes...`);
+        console.log(`🔷 HierarchyBuilder.buildHierarchy START`);
+        console.log(`  📊 Total nodes: ${flatNodes.length}`);
+        console.log(`  📌 Root parent: ${rootParent.name} (${rootParent.type})`);
+        console.log("🎨 Implementing layer-by-layer paint order rendering...");
+        // Build stacking context tree first
+        this.buildStackingContextTree(flatNodes);
         const nodeMap = new Map(flatNodes.map((n) => [n.id, n]));
+        const createdNodesMap = new Map();
+        // Step 1: Find root nodes and create them
         const roots = flatNodes.filter((node) => {
             if (!node.parent)
                 return true;
@@ -92,44 +101,260 @@ class HierarchyBuilder {
             }
             return false;
         });
-        console.log(`Found ${roots.length} root nodes`);
-        for (const rootNode of roots) {
-            await this.createNodeRecursive(rootNode, rootParent, flatNodes, nodeMap, createNodeFn, 0);
-        }
-        console.log("✓ Hierarchy build complete:", this.stats);
+        console.log(`  🌳 Found ${roots.length} root nodes`);
+        // Step 2: Render layers in proper paint order (top to bottom)
+        console.log(`  🎬 Starting renderLayerByLayer...`);
+        await this.renderLayerByLayer(flatNodes, rootParent, createNodeFn, createdNodesMap);
+        console.log("✓ Layer-by-layer hierarchy build complete:", this.stats);
     }
-    async createNodeRecursive(nodeData, figmaParent, allNodes, nodeMap, createNodeFn, depth) {
-        this.stats.maxDepth = Math.max(this.stats.maxDepth, depth);
-        try {
+    /**
+     * Render nodes layer by layer in proper CSS paint order
+     */
+    async renderLayerByLayer(allNodes, rootParent, createNodeFn, createdNodesMap) {
+        // Get all nodes sorted by paint order
+        const sortedByPaintOrder = [...allNodes].sort((a, b) => {
+            return this.calculatePaintOrder(a, b, allNodes);
+        });
+        console.log("🎨 Rendering layers in paint order (background to foreground):");
+        // Process each layer sequentially
+        for (let i = 0; i < sortedByPaintOrder.length; i++) {
+            const nodeData = sortedByPaintOrder[i];
+            // Skip if already created as part of parent hierarchy
+            if (createdNodesMap.has(nodeData.id)) {
+                continue;
+            }
+            // Determine parent for this node
+            const figmaParent = this.getFigmaParent(nodeData, createdNodesMap, rootParent);
+            // Create the node
             const figmaNode = await createNodeFn(nodeData, figmaParent);
-            if (!figmaNode) {
-                console.warn(`Failed to create node: ${nodeData.name || nodeData.id}`);
-                return null;
+            if (figmaNode) {
+                createdNodesMap.set(nodeData.id, figmaNode);
+                this.stats.nodesCreated++;
+                // Log layer information
+                const context = this.getStackingContext(nodeData);
+                const zIndex = this.getZIndex(nodeData);
+                console.log(`  Layer ${i + 1}/${sortedByPaintOrder.length}: ${nodeData.name || nodeData.id} (z-index: ${zIndex}, context: ${context.elementId})`);
+                if (nodeData.type === "IMAGE")
+                    this.stats.imageNodes++;
+                if (nodeData.type === "TEXT")
+                    this.stats.textNodes++;
             }
-            this.stats.nodesCreated++;
-            if (nodeData.type === "IMAGE")
-                this.stats.imageNodes++;
-            if (nodeData.type === "TEXT")
-                this.stats.textNodes++;
-            const children = allNodes
-                .filter((n) => n.parent === nodeData.id)
-                .sort((a, b) => {
-                var _a, _b;
-                const zA = ((_a = a.styles) === null || _a === void 0 ? void 0 : _a.zIndex) ? parseInt(a.styles.zIndex) : 0;
-                const zB = ((_b = b.styles) === null || _b === void 0 ? void 0 : _b.zIndex) ? parseInt(b.styles.zIndex) : 0;
-                return zA - zB;
-            });
-            if (children.length > 0 && "appendChild" in figmaNode) {
-                for (const childData of children) {
-                    await this.createNodeRecursive(childData, figmaNode, allNodes, nodeMap, createNodeFn, depth + 1);
-                }
+        }
+    }
+    /**
+     * Get appropriate Figma parent for a node
+     */
+    getFigmaParent(nodeData, createdNodesMap, rootParent) {
+        // If no parent specified, use root
+        if (!nodeData.parent) {
+            return rootParent;
+        }
+        // Check if parent has been created
+        const parentNode = createdNodesMap.get(nodeData.parent);
+        if (parentNode && 'appendChild' in parentNode) {
+            return parentNode;
+        }
+        // Fallback to root parent if parent not found
+        return rootParent;
+    }
+    /**
+     * Calculate proper CSS paint order between two nodes
+     */
+    calculatePaintOrder(nodeA, nodeB, allNodes) {
+        // Build stacking context tree first time
+        if (this.stackingContexts.size === 0) {
+            this.buildStackingContextTree(allNodes);
+        }
+        // Primary: Compare by z-index values
+        const zIndexA = this.getZIndex(nodeA);
+        const zIndexB = this.getZIndex(nodeB);
+        const numA = typeof zIndexA === 'number' ? zIndexA : 0;
+        const numB = typeof zIndexB === 'number' ? zIndexB : 0;
+        if (numA !== numB) {
+            return numA - numB;
+        }
+        // Secondary: Compare stacking context paint order
+        const contextA = this.getStackingContext(nodeA);
+        const contextB = this.getStackingContext(nodeB);
+        if (contextA.paintOrder !== contextB.paintOrder) {
+            return (contextA.paintOrder || 0) - (contextB.paintOrder || 0);
+        }
+        // Tertiary: Use DOM order as final fallback
+        return this.getDOMOrder(nodeA, nodeB, allNodes);
+    }
+    /**
+     * Build stacking context tree and assign paint order
+     */
+    buildStackingContextTree(allNodes) {
+        this.stackingContexts.clear();
+        this.paintOrderIndex = 0;
+        // Find root stacking context (document/html)
+        const rootNode = allNodes.find(n => n.tagName === 'html' ||
+            n.tagName === 'HTML' ||
+            !n.parent);
+        if (!rootNode)
+            return;
+        // Create root stacking context
+        this.stackingContexts.set(rootNode.id, {
+            elementId: rootNode.id,
+            zIndex: 0,
+            children: [],
+            paintOrder: this.paintOrderIndex++
+        });
+        // Process all nodes for stacking context detection
+        for (const node of allNodes) {
+            if (this.createsStackingContext(node)) {
+                this.addStackingContext(node, allNodes);
             }
-            return figmaNode;
         }
-        catch (error) {
-            console.error(`Error creating ${nodeData.name || nodeData.id}:`, error);
-            return null;
+        // Calculate paint order recursively
+        this.calculatePaintOrderRecursive(rootNode.id, allNodes);
+    }
+    /**
+     * Determine if element creates a stacking context
+     */
+    createsStackingContext(node) {
+        const styles = node.styles || {};
+        const layout = node.layout || {};
+        const compositing = layout.compositing || node.compositing || {};
+        return (node.tagName === 'html' ||
+            node.tagName === 'HTML' ||
+            (styles.position !== 'static' && styles.zIndex && styles.zIndex !== 'auto') ||
+            parseFloat(styles.opacity || '1') < 1 ||
+            (styles.transform && styles.transform !== 'none') ||
+            (styles.filter && styles.filter !== 'none') ||
+            (styles.perspective && styles.perspective !== 'none') ||
+            (styles.clipPath && styles.clipPath !== 'none') ||
+            (styles.isolation === 'isolate') ||
+            compositing.createsStackingContext === true);
+    }
+    /**
+     * Add stacking context to tree
+     */
+    addStackingContext(node, allNodes) {
+        var _a, _b, _c;
+        if (this.stackingContexts.has(node.id))
+            return;
+        // Find parent stacking context
+        let parentContextId = this.findParentStackingContext(node, allNodes);
+        const context = {
+            elementId: node.id,
+            zIndex: this.getZIndex(node),
+            children: [],
+            position: (_a = node.styles) === null || _a === void 0 ? void 0 : _a.position,
+            transform: (_b = node.styles) === null || _b === void 0 ? void 0 : _b.transform,
+            opacity: parseFloat(((_c = node.styles) === null || _c === void 0 ? void 0 : _c.opacity) || '1'),
+            paintOrder: this.paintOrderIndex++
+        };
+        this.stackingContexts.set(node.id, context);
+        // Add to parent's children
+        if (parentContextId && this.stackingContexts.has(parentContextId)) {
+            this.stackingContexts.get(parentContextId).children.push(context);
         }
+    }
+    /**
+     * Find the nearest parent stacking context
+     */
+    findParentStackingContext(node, allNodes) {
+        let currentNode = node;
+        while (currentNode.parent) {
+            const parentNode = allNodes.find(n => n.id === currentNode.parent);
+            if (!parentNode)
+                break;
+            if (this.stackingContexts.has(parentNode.id)) {
+                return parentNode.id;
+            }
+            currentNode = parentNode;
+        }
+        return null;
+    }
+    /**
+     * Calculate paint order globally across all stacking contexts
+     */
+    calculatePaintOrderRecursive(contextId, allNodes) {
+        const context = this.stackingContexts.get(contextId);
+        if (!context)
+            return;
+        // Get all elements in this stacking context and sort them properly
+        const elementsInContext = allNodes.filter(node => this.getStackingContextId(node, allNodes) === contextId);
+        // Sort by CSS paint order rules within this context
+        const sortedElements = elementsInContext.sort((a, b) => {
+            const zIndexA = this.getZIndex(a);
+            const zIndexB = this.getZIndex(b);
+            // Handle negative z-index first
+            const numA = typeof zIndexA === 'number' ? zIndexA : 0;
+            const numB = typeof zIndexB === 'number' ? zIndexB : 0;
+            if (numA !== numB) {
+                return numA - numB;
+            }
+            // Same z-index, use DOM order
+            return a.id.localeCompare(b.id);
+        });
+        // Assign incremental paint order values globally
+        for (const element of sortedElements) {
+            if (this.stackingContexts.has(element.id)) {
+                this.stackingContexts.get(element.id).paintOrder = this.paintOrderIndex++;
+            }
+        }
+        // Recursively process child contexts
+        for (const child of context.children) {
+            this.calculatePaintOrderRecursive(child.elementId, allNodes);
+        }
+    }
+    /**
+     * Get the stacking context ID for a given node
+     */
+    getStackingContextId(node, allNodes) {
+        if (this.stackingContexts.has(node.id)) {
+            return node.id;
+        }
+        // Find nearest ancestor stacking context
+        let currentNode = node;
+        while (currentNode.parent) {
+            const parentNode = allNodes.find(n => n.id === currentNode.parent);
+            if (!parentNode)
+                break;
+            if (this.stackingContexts.has(parentNode.id)) {
+                return parentNode.id;
+            }
+            currentNode = parentNode;
+        }
+        return 'html'; // fallback to root
+    }
+    /**
+     * Get stacking context for a node
+     */
+    getStackingContext(node) {
+        // Check if node itself creates a stacking context
+        if (this.stackingContexts.has(node.id)) {
+            return this.stackingContexts.get(node.id);
+        }
+        // Find nearest ancestor stacking context
+        const contextId = this.findParentStackingContext(node, []);
+        return this.stackingContexts.get(contextId) || {
+            elementId: 'root',
+            zIndex: 0,
+            children: [],
+            paintOrder: 0
+        };
+    }
+    /**
+     * Get z-index value for node
+     */
+    getZIndex(node) {
+        var _a;
+        const zIndex = (_a = node.styles) === null || _a === void 0 ? void 0 : _a.zIndex;
+        if (!zIndex || zIndex === 'auto')
+            return 'auto';
+        return parseInt(zIndex) || 0;
+    }
+    /**
+     * Get DOM order comparison between two nodes
+     */
+    getDOMOrder(nodeA, nodeB, _allNodes) {
+        // Simple ID comparison as fallback - in real implementation,
+        // this should use document order
+        return nodeA.id.localeCompare(nodeB.id);
     }
     getStats() {
         return Object.assign({}, this.stats);
@@ -155,10 +380,188 @@ const streamCreatedNodes = new Map();
 let totalStreamNodesProcessed = 0;
 const STREAM_ASSEMBLY_TIMEOUT_MS = 10000;
 let SERVER_PORT = 3000; // Default, will be updated from UI
+const streamFullDataEnvelope = {
+    screenshots: streamScreenshots,
+    states: streamStates,
+};
+function normalizeFontFamilyName(family) {
+    if (!family)
+        return "";
+    return family.replace(/['"]/g, "").trim().toLowerCase();
+}
+function normalizeFontStyle(style, weight) {
+    const numericWeight = parseInt(weight || "", 10);
+    if (!isNaN(numericWeight)) {
+        if (numericWeight >= 700)
+            return "Bold";
+        if (numericWeight >= 600)
+            return "Semi Bold";
+        if (numericWeight >= 500)
+            return "Medium";
+        if (numericWeight <= 300)
+            return "Light";
+    }
+    const clean = (style || "").toLowerCase();
+    if (clean.includes("italic"))
+        return "Italic";
+    if (clean.includes("medium"))
+        return "Medium";
+    if (clean.includes("bold"))
+        return "Bold";
+    if (clean.includes("semi"))
+        return "Semi Bold";
+    if (clean.includes("light"))
+        return "Light";
+    return "Regular";
+}
+function ensureNodeLookup(fullData) {
+    if (!fullData) {
+        return new Map();
+    }
+    if (!fullData.__nodeLookup) {
+        fullData.__nodeLookup = new Map();
+    }
+    return fullData.__nodeLookup;
+}
+function registerNodesWithLookup(fullData, nodes = []) {
+    if (!fullData || !nodes || nodes.length === 0)
+        return;
+    const lookup = ensureNodeLookup(fullData);
+    for (const node of nodes) {
+        if (node === null || node === void 0 ? void 0 : node.id) {
+            lookup.set(node.id, node);
+        }
+    }
+}
+function getAbsoluteBounds(nodeData) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    const layoutDoc = (_a = nodeData === null || nodeData === void 0 ? void 0 : nodeData.layout) === null || _a === void 0 ? void 0 : _a.document;
+    const layoutViewport = (_b = nodeData === null || nodeData === void 0 ? void 0 : nodeData.layout) === null || _b === void 0 ? void 0 : _b.viewport;
+    const rect = (nodeData === null || nodeData === void 0 ? void 0 : nodeData.rect) || {};
+    return {
+        x: (_e = (_d = (_c = layoutDoc === null || layoutDoc === void 0 ? void 0 : layoutDoc.x) !== null && _c !== void 0 ? _c : layoutViewport === null || layoutViewport === void 0 ? void 0 : layoutViewport.x) !== null && _d !== void 0 ? _d : rect.x) !== null && _e !== void 0 ? _e : 0,
+        y: (_h = (_g = (_f = layoutDoc === null || layoutDoc === void 0 ? void 0 : layoutDoc.y) !== null && _f !== void 0 ? _f : layoutViewport === null || layoutViewport === void 0 ? void 0 : layoutViewport.y) !== null && _g !== void 0 ? _g : rect.y) !== null && _h !== void 0 ? _h : 0,
+        width: (_k = (_j = layoutViewport === null || layoutViewport === void 0 ? void 0 : layoutViewport.width) !== null && _j !== void 0 ? _j : rect.width) !== null && _k !== void 0 ? _k : 0,
+        height: (_m = (_l = layoutViewport === null || layoutViewport === void 0 ? void 0 : layoutViewport.height) !== null && _l !== void 0 ? _l : rect.height) !== null && _m !== void 0 ? _m : 0,
+    };
+}
+function getRelativeBounds(nodeData, parentData) {
+    const absolute = getAbsoluteBounds(nodeData);
+    if (!parentData) {
+        return absolute;
+    }
+    const parentAbsolute = getAbsoluteBounds(parentData);
+    return {
+        x: absolute.x - parentAbsolute.x,
+        y: absolute.y - parentAbsolute.y,
+        width: absolute.width,
+        height: absolute.height,
+    };
+}
+function clampSize(value) {
+    if (!isFinite(value) || isNaN(value))
+        return 1;
+    return Math.max(0.5, value);
+}
+function sanitizeNumber(value, fallback = 0) {
+    const parsed = typeof value === "number" ? value : parseFloat(value);
+    if (isNaN(parsed) || !isFinite(parsed)) {
+        return fallback;
+    }
+    return parsed;
+}
+function parseMatrix(transform) {
+    const matrixMatch = transform.match(/matrix\(([^)]+)\)/);
+    if (!matrixMatch)
+        return null;
+    const values = matrixMatch[1]
+        .split(",")
+        .map((v) => parseFloat(v.trim()))
+        .filter((v) => !isNaN(v));
+    if (values.length === 6) {
+        return values;
+    }
+    return null;
+}
+const BLEND_MODE_MAP = {
+    multiply: "MULTIPLY",
+    screen: "SCREEN",
+    overlay: "OVERLAY",
+    darken: "DARKEN",
+    lighten: "LIGHTEN",
+    "color-dodge": "COLOR_DODGE",
+    "color-burn": "COLOR_BURN",
+    "hard-light": "HARD_LIGHT",
+    "soft-light": "SOFT_LIGHT",
+    difference: "DIFFERENCE",
+    exclusion: "EXCLUSION",
+    hue: "HUE",
+    saturation: "SATURATION",
+    color: "COLOR",
+    luminosity: "LUMINOSITY",
+};
+function mapBlendMode(value) {
+    if (!value)
+        return null;
+    const key = value.toLowerCase();
+    return BLEND_MODE_MAP[key] || null;
+}
+function applyNodeTransform(node, nodeData) {
+    var _a, _b, _c;
+    const transformString = ((_b = (_a = nodeData === null || nodeData === void 0 ? void 0 : nodeData.layout) === null || _a === void 0 ? void 0 : _a.transform) === null || _b === void 0 ? void 0 : _b.matrix) || ((_c = nodeData === null || nodeData === void 0 ? void 0 : nodeData.styles) === null || _c === void 0 ? void 0 : _c.transform);
+    if (!transformString || transformString === "none")
+        return;
+    try {
+        const matrixValues = parseMatrix(transformString);
+        if (matrixValues) {
+            const [a, b] = matrixValues;
+            // Guard against degenerate matrices (zero scale) which make rotation undefined
+            const determinant = a * a + b * b;
+            if (determinant <= Number.EPSILON) {
+                throw new Error("degenerate transform matrix");
+            }
+            const rotationRad = Math.atan2(b, a);
+            if ("rotation" in node && isFinite(rotationRad)) {
+                node.rotation = (rotationRad * 180) / Math.PI;
+            }
+            return;
+        }
+    }
+    catch (error) {
+        console.warn("applyNodeTransform failed", nodeData === null || nodeData === void 0 ? void 0 : nodeData.id, error);
+    }
+    const rotateMatch = transformString.match(/rotate\(([^)]+)deg\)/);
+    if (rotateMatch && "rotation" in node) {
+        const parsed = parseFloat(rotateMatch[1]);
+        if (isFinite(parsed)) {
+            node.rotation = parsed;
+        }
+    }
+}
+function applyOpacityAndBlend(node, nodeData) {
+    var _a, _b, _c, _d, _e, _f;
+    const explicitOpacity = (_b = (_a = nodeData === null || nodeData === void 0 ? void 0 : nodeData.styles) === null || _a === void 0 ? void 0 : _a.opacity) !== null && _b !== void 0 ? _b : (_d = (_c = nodeData === null || nodeData === void 0 ? void 0 : nodeData.layout) === null || _c === void 0 ? void 0 : _c.visibility) === null || _d === void 0 ? void 0 : _d.opacity;
+    if (typeof explicitOpacity !== "undefined" &&
+        "opacity" in node &&
+        explicitOpacity !== null) {
+        const parsed = sanitizeNumber(explicitOpacity, 1);
+        node.opacity = Math.max(0, Math.min(1, parsed));
+    }
+    const blend = ((_e = nodeData === null || nodeData === void 0 ? void 0 : nodeData.compositing) === null || _e === void 0 ? void 0 : _e.mixBlendMode) || ((_f = nodeData === null || nodeData === void 0 ? void 0 : nodeData.styles) === null || _f === void 0 ? void 0 : _f.mixBlendMode);
+    const figmaBlend = mapBlendMode(blend);
+    if (figmaBlend && "blendMode" in node) {
+        node.blendMode = figmaBlend;
+    }
+}
+const ENABLE_AUTO_LAYOUT = true; // Enable comprehensive flexbox → Auto Layout mapping
 function resetStreamState() {
     pendingImageNodes.clear();
     streamCreatedNodes.clear();
     totalStreamNodesProcessed = 0;
+    if (streamFullDataEnvelope.__nodeLookup) {
+        streamFullDataEnvelope.__nodeLookup.clear();
+        delete streamFullDataEnvelope.__nodeLookup;
+    }
     for (const key of Object.keys(streamScreenshots)) {
         delete streamScreenshots[key];
     }
@@ -240,46 +643,64 @@ figma.ui.onmessage = async (msg) => {
     }
 };
 async function handleStreamEnvelope(msg) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f;
     switch (msg.type) {
         case "TOKENS":
             resetStreamState();
             tokenVariables = await createFigmaVariables(msg.payload || {});
             break;
         case "FONTS":
-            if (Array.isArray(msg.payload)) {
-                await processFonts(msg.payload);
+            if (msg.payload) {
+                await processFonts(msg.payload, Array.isArray((_a = msg.payload) === null || _a === void 0 ? void 0 : _a.fontFaces) ? msg.payload.fontFaces : []);
             }
             break;
         case "NODES":
-            if ((_a = msg.payload) === null || _a === void 0 ? void 0 : _a.nodes) {
+            console.log("🎯 RECEIVED NODES MESSAGE:", {
+                hasPayload: !!msg.payload,
+                hasNodes: !!((_b = msg.payload) === null || _b === void 0 ? void 0 : _b.nodes),
+                nodeCount: ((_d = (_c = msg.payload) === null || _c === void 0 ? void 0 : _c.nodes) === null || _d === void 0 ? void 0 : _d.length) || 0
+            });
+            if ((_e = msg.payload) === null || _e === void 0 ? void 0 : _e.nodes) {
+                console.log("📦 Processing NODES batch with", msg.payload.nodes.length, "nodes");
                 await handleStreamNodeBatch(msg.payload.nodes);
+                console.log("✅ NODES batch processing complete");
+            }
+            else {
+                console.warn("⚠️ NODES message received but no nodes in payload");
             }
             break;
         case "PROGRESS":
             figma.ui.postMessage(Object.assign({ type: "PROGRESS_UPDATE" }, msg.payload));
             break;
         case "ERROR":
-            figma.notify(`Error: ${((_b = msg.payload) === null || _b === void 0 ? void 0 : _b.message) || "Unknown error"}`, {
+            figma.notify(`Error: ${((_f = msg.payload) === null || _f === void 0 ? void 0 : _f.message) || "Unknown error"}`, {
                 error: true,
             });
             break;
         case "COMPLETE":
+            console.log("🏁 RECEIVED COMPLETE MESSAGE:", msg.payload);
             await handleStreamComplete(msg.payload);
+            console.log("✅ handleStreamComplete finished");
             break;
     }
 }
 // ✅ UPDATED: Use hierarchy builder for streaming
 async function handleStreamNodeBatch(nodes) {
-    const streamFullData = {
-        screenshots: streamScreenshots,
-        states: streamStates,
-    };
+    console.log("🔧 handleStreamNodeBatch START:", {
+        totalNodes: nodes.length,
+        sampleNode: nodes[0] ? { id: nodes[0].id, type: nodes[0].type, name: nodes[0].name } : null
+    });
+    const streamFullData = streamFullDataEnvelope;
+    registerNodesWithLookup(streamFullData, nodes);
     // ✅ Use hierarchy builder for stream too
     const builder = new HierarchyBuilder();
     // Separate nodes into regular and deferred (image chunks)
     const regularNodes = nodes.filter((n) => { var _a; return !((_a = n.imageChunkRef) === null || _a === void 0 ? void 0 : _a.isStreamed); });
     const deferredNodes = nodes.filter((n) => { var _a; return (_a = n.imageChunkRef) === null || _a === void 0 ? void 0 : _a.isStreamed; });
+    console.log("📊 Node categorization:", {
+        regularNodes: regularNodes.length,
+        deferredNodes: deferredNodes.length
+    });
     // Store screenshots and states
     for (const node of nodes) {
         if (node.screenshot) {
@@ -292,19 +713,30 @@ async function handleStreamNodeBatch(nodes) {
     // Defer image nodes
     for (const node of deferredNodes) {
         pendingImageNodes.set(node.id, node);
+        registerNodesWithLookup(streamFullData, [node]);
         console.log(`Deferring image node ${node.id} (waiting for ${node.imageChunkRef.totalChunks} chunks)`);
     }
     // Build hierarchy for regular nodes
     if (regularNodes.length > 0) {
+        console.log("🏗️ Building hierarchy for", regularNodes.length, "regular nodes");
         await builder.buildHierarchy(regularNodes, figma.currentPage, async (nodeData, parent) => {
+            console.log("  🔨 Creating node:", { id: nodeData.id, type: nodeData.type, name: nodeData.name });
             const figmaNode = await createEnhancedNode(nodeData, parent, streamFullData, streamCreatedNodes);
             if (figmaNode) {
                 streamCreatedNodes.set(nodeData.id, figmaNode);
+                console.log("  ✅ Node created:", figmaNode.name);
+            }
+            else {
+                console.warn("  ⚠️ Node creation returned null for:", nodeData.id);
             }
             return figmaNode;
         });
         const stats = builder.getStats();
         totalStreamNodesProcessed += stats.nodesCreated;
+        console.log("📈 Hierarchy build complete:", stats);
+    }
+    else {
+        console.warn("⚠️ No regular nodes to build (all deferred or empty)");
     }
     figma.ui.postMessage({
         type: "PROGRESS_UPDATE",
@@ -345,10 +777,7 @@ async function createPendingImageNode(nodeId) {
     }
     node.imageData = Array.from(assembled);
     delete node.imageChunkRef;
-    const streamFullData = {
-        screenshots: streamScreenshots,
-        states: streamStates,
-    };
+    const streamFullData = streamFullDataEnvelope;
     const figmaNode = await createEnhancedNode(node, figma.currentPage, streamFullData, streamCreatedNodes);
     if (figmaNode) {
         streamCreatedNodes.set(node.id, figmaNode);
@@ -401,9 +830,11 @@ async function handleStreamComplete(payload) {
 async function processFullPage(data) {
     const startTime = Date.now();
     // Step 1: Process fonts
-    if (data.fonts && data.fonts.length > 0) {
-        console.log(`Processing ${data.fonts.length} fonts...`);
-        await processFonts(data.fonts);
+    const incomingFonts = data.fonts || [];
+    const incomingFontFaces = data.fontFaces || [];
+    if (incomingFonts.length > 0 || incomingFontFaces.length > 0) {
+        console.log(`Processing fonts (${incomingFonts.length} fonts, ${incomingFontFaces.length} faces)...`);
+        await processFonts({ fonts: incomingFonts, fontFaces: incomingFontFaces }, incomingFontFaces);
     }
     // Step 2: Create design tokens
     if (data.tokens) {
@@ -420,6 +851,7 @@ async function processFullPage(data) {
     // ✅ Step 4: Build hierarchy using HierarchyBuilder
     const builder = new HierarchyBuilder();
     const createdNodes = new Map();
+    registerNodesWithLookup(data, data.nodes);
     await builder.buildHierarchy(data.nodes, container, async (nodeData, parent) => {
         const figmaNode = await createEnhancedNode(nodeData, parent, data, createdNodes);
         if (figmaNode) {
@@ -446,27 +878,51 @@ async function processBufferedNodes() {
 /**
  * PHASE 2: Font Processing & Mapping
  */
-async function processFonts(fonts) {
+async function processFonts(fontPayload, explicitFontFaces = []) {
+    const payloadIsArray = Array.isArray(fontPayload);
+    const fonts = payloadIsArray
+        ? fontPayload
+        : (fontPayload === null || fontPayload === void 0 ? void 0 : fontPayload.fonts) || [];
+    const payloadFaces = payloadIsArray
+        ? []
+        : (fontPayload === null || fontPayload === void 0 ? void 0 : fontPayload.fontFaces) || (fontPayload === null || fontPayload === void 0 ? void 0 : fontPayload.faces) || [];
+    const fontFaces = [...explicitFontFaces, ...payloadFaces];
+    const variants = [];
     const fontFamilies = new Set();
-    fonts.forEach((font) => {
-        fontFamilies.add(font.family);
-    });
+    for (const entry of [...fonts, ...fontFaces]) {
+        if (!(entry === null || entry === void 0 ? void 0 : entry.family))
+            continue;
+        fontFamilies.add(entry.family);
+        variants.push({
+            family: entry.family,
+            style: entry.style,
+            weight: entry.weight,
+        });
+    }
     console.log("Detected font families:", Array.from(fontFamilies));
-    for (const family of fontFamilies) {
-        const figmaFont = mapToFigmaFont(family);
-        fontMapping[family] = figmaFont;
-        // Pre-load common weights
-        const weights = ["Regular", "Medium", "Semi Bold", "Bold", "Light"];
-        for (const weight of weights) {
-            try {
-                await figma.loadFontAsync({ family: figmaFont.family, style: weight });
-                loadedFonts.add(`${figmaFont.family}__${weight}`);
-            }
-            catch (e) {
-                // Weight not available
-            }
+    for (const variant of variants) {
+        const family = variant.family;
+        const normalizedFamily = normalizeFontFamilyName(family);
+        const style = normalizeFontStyle(variant.style, variant.weight);
+        const figmaFont = { family, style };
+        try {
+            await figma.loadFontAsync(figmaFont);
+            loadedFonts.add(`${figmaFont.family}__${figmaFont.style}`);
+            fontMapping[family] = figmaFont;
+            fontMapping[normalizedFamily] = figmaFont;
+            console.log(`✓ Loaded font: ${figmaFont.family} (${figmaFont.style})`);
         }
-        console.log(`✓ Loaded font: ${figmaFont.family}`);
+        catch (e) {
+            // Continue to fallback mapping
+        }
+    }
+    for (const family of fontFamilies) {
+        const normalizedFamily = normalizeFontFamilyName(family);
+        if (fontMapping[normalizedFamily])
+            continue;
+        const fallback = mapToFigmaFont(family);
+        fontMapping[family] = fallback;
+        fontMapping[normalizedFamily] = fallback;
     }
 }
 function mapToFigmaFont(webFont) {
@@ -508,30 +964,54 @@ function mapToFigmaFont(webFont) {
  * NOTE: This function is called by HierarchyBuilder recursively
  */
 async function createEnhancedNode(nodeData, parent, fullData, createdNodes) {
+    var _a, _b;
+    console.log("    🎨 createEnhancedNode:", {
+        id: nodeData.id,
+        type: nodeData.type,
+        name: nodeData.name,
+        hasParent: !!nodeData.parent,
+        parentName: (parent === null || parent === void 0 ? void 0 : parent.name) || 'unknown'
+    });
     let node = null;
     try {
+        const nodeLookup = ensureNodeLookup(fullData);
+        const parentData = nodeData.parent ? nodeLookup.get(nodeData.parent) : null;
         const hasScreenshot = fullData.screenshots && fullData.screenshots[nodeData.id];
         const hasStates = fullData.states && fullData.states[nodeData.id];
+        console.log("    📋 Node details:", {
+            hasScreenshot,
+            hasStates,
+            hasText: nodeData.type === "TEXT" && nodeData.text,
+            hasImage: nodeData.type === "IMAGE" && nodeData.image,
+            hasSVG: nodeData.type === "SVG" && nodeData.svg
+        });
         // Create base node based on type
         if (nodeData.type === "TEXT" && nodeData.text) {
+            console.log("    📝 Creating TEXT node");
             node = await createTextNode(nodeData, hasScreenshot);
         }
         else if (nodeData.type === "IMAGE" && nodeData.image) {
+            console.log("    🖼️ Creating IMAGE node");
             node = await createImageNode(nodeData);
         }
         else if (nodeData.type === "SVG" && nodeData.svg) {
+            console.log("    🎭 Creating SVG node");
             node = await createSVGNode(nodeData);
         }
         else {
+            console.log("    📦 Creating FRAME node");
             node = await createFrameNode(nodeData, hasScreenshot);
         }
         if (!node)
             return null;
-        // Apply common properties
-        node.x = nodeData.rect.x;
-        node.y = nodeData.rect.y;
+        // Apply common properties using normalized bounds
+        const bounds = getRelativeBounds(nodeData, parentData);
+        node.x = Math.round(bounds.x || 0);
+        node.y = Math.round(bounds.y || 0);
         if ("resize" in node) {
-            node.resize(Math.max(1, nodeData.rect.width), Math.max(1, nodeData.rect.height));
+            const width = clampSize(bounds.width || ((_a = nodeData.rect) === null || _a === void 0 ? void 0 : _a.width) || 100);
+            const height = clampSize(bounds.height || ((_b = nodeData.rect) === null || _b === void 0 ? void 0 : _b.height) || 100);
+            node.resize(width, height);
         }
         // PHASE 3: Apply screenshot as background
         if (hasScreenshot && "appendChild" in node) {
@@ -553,12 +1033,31 @@ async function createEnhancedNode(nodeData, parent, fullData, createdNodes) {
             nodeData.name || nodeData.componentHint || nodeData.tag || "element";
         // ✅ Parent is now passed by HierarchyBuilder
         if (parent && "appendChild" in parent) {
+            console.log("    ➕ Appending node to parent:", {
+                nodeName: node.name,
+                parentName: parent.name,
+                parentType: parent.type
+            });
             parent.appendChild(node);
+            console.log("    ✓ Node appended successfully");
+            // Apply flex item properties if the parent is an Auto Layout container
+            if ('layoutMode' in parent && parent.layoutMode !== "NONE") {
+                applyFlexItemProperties(node, nodeData);
+            }
         }
+        else {
+            console.warn("    ⚠️ Cannot append node - parent invalid or no appendChild:", {
+                hasParent: !!parent,
+                hasAppendChild: parent && "appendChild" in parent
+            });
+        }
+        applyOpacityAndBlend(node, nodeData);
+        applyNodeTransform(node, nodeData);
+        console.log("    ✅ createEnhancedNode complete for:", node.name);
         return node;
     }
     catch (error) {
-        console.error("Error creating node:", error, nodeData);
+        console.error("    ❌ Error creating node:", error, nodeData);
         return null;
     }
 }
@@ -566,17 +1065,18 @@ async function createEnhancedNode(nodeData, parent, fullData, createdNodes) {
  * Create text node with proper typography
  */
 async function createTextNode(nodeData, hasScreenshot) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e;
     const textNode = figma.createText();
     // Determine font
     let fontFamily = "Inter";
     let fontStyle = "Regular";
-    if (nodeData.styles.fontFamily) {
-        const webFontFamily = nodeData.styles.fontFamily
-            .split(",")[0]
-            .replace(/['"]/g, "")
-            .trim();
-        const mapped = fontMapping[webFontFamily] || mapToFigmaFont(webFontFamily);
+    const resolvedFontFamily = ((_b = (_a = nodeData.typography) === null || _a === void 0 ? void 0 : _a.font) === null || _b === void 0 ? void 0 : _b.familyResolved) || nodeData.styles.fontFamily;
+    if (resolvedFontFamily) {
+        const webFontFamily = resolvedFontFamily.split(",")[0].trim();
+        const normalizedKey = normalizeFontFamilyName(webFontFamily);
+        const mapped = fontMapping[normalizedKey] ||
+            fontMapping[webFontFamily] ||
+            mapToFigmaFont(webFontFamily);
         fontFamily = mapped.family;
         fontStyle = mapped.style;
     }
@@ -594,7 +1094,20 @@ async function createTextNode(nodeData, hasScreenshot) {
     }
     await ensureFontLoaded(fontFamily, fontStyle);
     textNode.fontName = { family: fontFamily, style: fontStyle };
-    textNode.characters = nodeData.text || "";
+    // Handle both string and object formats for text
+    let textContent = "";
+    if (typeof nodeData.text === 'string') {
+        textContent = nodeData.text;
+    }
+    else if (nodeData.text && typeof nodeData.text === 'object') {
+        // If text is an object (from typography.text), extract content
+        textContent = nodeData.text.content || nodeData.text.innerText || "";
+    }
+    else if ((_c = nodeData.typography) === null || _c === void 0 ? void 0 : _c.text) {
+        // Fallback: try to get from typography if main text is missing
+        textContent = nodeData.typography.text.content || nodeData.typography.text.innerText || "";
+    }
+    textNode.characters = textContent;
     // Apply text styles
     if (nodeData.styles.fontSize) {
         textNode.fontSize = parseFloat(nodeData.styles.fontSize);
@@ -643,10 +1156,10 @@ async function createTextNode(nodeData, hasScreenshot) {
     else if (nodeData.styles.textTransform === "capitalize") {
         textNode.textCase = "TITLE";
     }
-    if ((_a = nodeData.styles.textDecoration) === null || _a === void 0 ? void 0 : _a.includes("underline")) {
+    if ((_d = nodeData.styles.textDecoration) === null || _d === void 0 ? void 0 : _d.includes("underline")) {
         textNode.textDecoration = "UNDERLINE";
     }
-    else if ((_b = nodeData.styles.textDecoration) === null || _b === void 0 ? void 0 : _b.includes("line-through")) {
+    else if ((_e = nodeData.styles.textDecoration) === null || _e === void 0 ? void 0 : _e.includes("line-through")) {
         textNode.textDecoration = "STRIKETHROUGH";
     }
     return textNode;
@@ -782,46 +1295,17 @@ async function createFrameNode(nodeData, hasScreenshot) {
             frame.fills = [];
         }
     }
-    // Apply auto-layout
-    if (nodeData.styles.display === "flex") {
-        frame.layoutMode =
-            nodeData.styles.flexDirection === "column" ? "VERTICAL" : "HORIZONTAL";
-        if (nodeData.styles.gap) {
-            const gap = parseFloat(nodeData.styles.gap);
-            if (!isNaN(gap))
-                frame.itemSpacing = gap;
+    // Apply comprehensive flexbox → Auto Layout mapping when enabled
+    if (ENABLE_AUTO_LAYOUT && (nodeData.styles.display === "flex" || nodeData.styles.display === "inline-flex")) {
+        try {
+            console.log(`Applying comprehensive Auto Layout to frame: ${nodeData.id || 'unknown'}`);
+            // Apply comprehensive flexbox mapping
+            applyComprehensiveFlexboxLayout(frame, nodeData);
         }
-        if (nodeData.styles.padding) {
-            const values = nodeData.styles.padding.match(/[\d.]+/g);
-            if (values) {
-                const [top, right, bottom, left] = values.map((value) => parseFloat(value));
-                frame.paddingTop = top || 0;
-                frame.paddingRight = right || top || 0;
-                frame.paddingBottom = bottom || top || 0;
-                frame.paddingLeft = left || right || top || 0;
-            }
-        }
-        if (nodeData.styles.justifyContent) {
-            const map = {
-                "flex-start": "MIN",
-                center: "CENTER",
-                "flex-end": "MAX",
-                "space-between": "SPACE_BETWEEN",
-            };
-            if (map[nodeData.styles.justifyContent]) {
-                frame.primaryAxisAlignItems = map[nodeData.styles.justifyContent];
-            }
-        }
-        if (nodeData.styles.alignItems) {
-            const map = {
-                "flex-start": "MIN",
-                center: "CENTER",
-                "flex-end": "MAX",
-                stretch: "STRETCH",
-            };
-            if (map[nodeData.styles.alignItems]) {
-                frame.counterAxisAlignItems = map[nodeData.styles.alignItems];
-            }
+        catch (error) {
+            console.warn(`Failed to apply comprehensive flexbox layout, falling back to basic:`, error);
+            // Fallback to basic implementation
+            applyBasicFlexboxLayout(frame, nodeData);
         }
     }
     // Border radius
@@ -900,6 +1384,7 @@ async function applyAdvancedEffects(node, styles) {
  */
 async function applyScreenshotBackground(frame, screenshotBase64) {
     try {
+        console.log(`📸 Applying screenshot to frame: ${frame.name}`);
         const bytes = figma.base64Decode(screenshotBase64);
         const image = figma.createImage(bytes);
         const bg = figma.createRectangle();
@@ -914,9 +1399,10 @@ async function applyScreenshotBackground(frame, screenshotBase64) {
         ];
         frame.appendChild(bg);
         frame.insertChild(0, bg);
+        console.log(`✅ Screenshot applied successfully to ${frame.name}`);
     }
     catch (e) {
-        console.error("Screenshot background failed:", e);
+        console.error(`❌ Screenshot background failed for ${frame.name}:`, e);
     }
 }
 /**
@@ -1205,4 +1691,222 @@ async function createFigmaVariables(tokens) {
         console.error("Variable creation failed:", error);
     }
     return variables;
+}
+// ==================== COMPREHENSIVE FLEXBOX → AUTO LAYOUT MAPPING ====================
+/**
+ * Apply comprehensive flexbox → Auto Layout mapping with full CSS feature support
+ */
+function applyComprehensiveFlexboxLayout(frame, nodeData) {
+    const styles = nodeData.styles;
+    console.log(`Comprehensive flexbox mapping for: ${nodeData.id}`, {
+        display: styles.display,
+        flexDirection: styles.flexDirection,
+        justifyContent: styles.justifyContent,
+        alignItems: styles.alignItems,
+        flexWrap: styles.flexWrap,
+        gap: styles.gap
+    });
+    // 1. FLEX DIRECTION → LAYOUT MODE
+    const direction = styles.flexDirection || "row";
+    frame.layoutMode = mapFlexDirectionToLayoutMode(direction);
+    // 2. FLEX WRAP DETECTION (unsupported in Figma - warn and continue)
+    if (styles.flexWrap && styles.flexWrap !== "nowrap") {
+        console.warn(`flex-wrap: ${styles.flexWrap} is not supported in Figma Auto Layout, ignoring`);
+    }
+    // 3. JUSTIFY CONTENT → PRIMARY AXIS ALIGNMENT
+    if (styles.justifyContent) {
+        frame.primaryAxisAlignItems = mapJustifyContentToPrimaryAxis(styles.justifyContent);
+    }
+    // 4. ALIGN ITEMS → COUNTER AXIS ALIGNMENT
+    if (styles.alignItems) {
+        frame.counterAxisAlignItems = mapAlignItemsToCounterAxis(styles.alignItems);
+    }
+    // 5. GAP → ITEM SPACING
+    if (styles.gap) {
+        const gap = parseGapValue(styles.gap);
+        if (gap > 0) {
+            frame.itemSpacing = gap;
+        }
+    }
+    // 6. PADDING
+    if (styles.padding) {
+        applyPaddingFromString(frame, styles.padding);
+    }
+    // 7. AUTO SIZING MODES
+    // Set intelligent sizing based on dimensions
+    if (styles.width && !styles.width.includes('%') && !styles.width.includes('auto')) {
+        frame.primaryAxisSizingMode = frame.layoutMode === "HORIZONTAL" ? "FIXED" : "AUTO";
+    }
+    else {
+        frame.primaryAxisSizingMode = "AUTO";
+    }
+    if (styles.height && !styles.height.includes('%') && !styles.height.includes('auto')) {
+        frame.counterAxisSizingMode = frame.layoutMode === "VERTICAL" ? "FIXED" : "AUTO";
+    }
+    else {
+        frame.counterAxisSizingMode = "AUTO";
+    }
+    console.log(`Applied Auto Layout:`, {
+        layoutMode: frame.layoutMode,
+        primaryAxisAlignItems: frame.primaryAxisAlignItems,
+        counterAxisAlignItems: frame.counterAxisAlignItems,
+        itemSpacing: frame.itemSpacing,
+        primaryAxisSizingMode: frame.primaryAxisSizingMode,
+        counterAxisSizingMode: frame.counterAxisSizingMode
+    });
+}
+/**
+ * Map flex-direction to Figma layoutMode
+ */
+function mapFlexDirectionToLayoutMode(direction) {
+    switch (direction) {
+        case "column":
+        case "column-reverse":
+            return "VERTICAL";
+        case "row":
+        case "row-reverse":
+        default:
+            return "HORIZONTAL";
+    }
+}
+/**
+ * Map justify-content to primaryAxisAlignItems with comprehensive support
+ */
+function mapJustifyContentToPrimaryAxis(justifyContent) {
+    const mapping = {
+        "flex-start": "MIN",
+        "start": "MIN",
+        "left": "MIN",
+        "center": "CENTER",
+        "flex-end": "MAX",
+        "end": "MAX",
+        "right": "MAX",
+        "space-between": "SPACE_BETWEEN",
+        "space-around": "CENTER", // Approximate with CENTER
+        "space-evenly": "CENTER", // Approximate with CENTER
+        "stretch": "MIN" // Not directly supported, use MIN
+    };
+    const result = mapping[justifyContent] || "MIN";
+    if (justifyContent === "space-around" || justifyContent === "space-evenly") {
+        console.warn(`justify-content: ${justifyContent} approximated as CENTER in Figma`);
+    }
+    return result;
+}
+/**
+ * Map align-items to counterAxisAlignItems with comprehensive support
+ */
+function mapAlignItemsToCounterAxis(alignItems) {
+    // Handle baseline alignment
+    if (alignItems.includes("baseline")) {
+        return "BASELINE";
+    }
+    const mapping = {
+        "flex-start": "MIN",
+        "start": "MIN",
+        "self-start": "MIN",
+        "center": "CENTER",
+        "flex-end": "MAX",
+        "end": "MAX",
+        "self-end": "MAX",
+        "stretch": "MIN", // Figma doesn't have stretch for counter axis, use MIN
+        "safe center": "CENTER",
+        "unsafe center": "CENTER"
+    };
+    const result = mapping[alignItems] || "MIN";
+    if (alignItems === "stretch") {
+        console.warn(`align-items: stretch mapped to MIN in Figma (stretch not supported for counter axis)`);
+    }
+    return result;
+}
+/**
+ * Parse gap value from CSS string
+ */
+function parseGapValue(gap) {
+    if (typeof gap === "number")
+        return gap;
+    if (!gap || gap === "normal" || gap === "0")
+        return 0;
+    // Handle multiple gap values (row column)
+    const parts = gap.toString().trim().split(/\s+/);
+    const firstValue = parts[0];
+    // Remove units and parse as float
+    const numValue = parseFloat(firstValue.replace(/[a-zA-Z%]+$/, ""));
+    return isNaN(numValue) ? 0 : numValue;
+}
+/**
+ * Apply padding from CSS string to Auto Layout frame
+ */
+function applyPaddingFromString(frame, padding) {
+    const values = padding.match(/[\d.]+/g);
+    if (values) {
+        const nums = values.map(v => parseFloat(v));
+        frame.paddingTop = nums[0] || 0;
+        frame.paddingRight = nums[1] || nums[0] || 0;
+        frame.paddingBottom = nums[2] || nums[0] || 0;
+        frame.paddingLeft = nums[3] || nums[1] || nums[0] || 0;
+    }
+}
+/**
+ * Apply basic flexbox layout (fallback)
+ */
+function applyBasicFlexboxLayout(frame, nodeData) {
+    const styles = nodeData.styles;
+    console.log(`Applying basic flexbox layout for: ${nodeData.id}`);
+    // Basic direction mapping
+    frame.layoutMode = (styles.flexDirection === "column") ? "VERTICAL" : "HORIZONTAL";
+    // Basic gap
+    if (styles.gap) {
+        const gap = parseFloat(styles.gap);
+        if (!isNaN(gap))
+            frame.itemSpacing = gap;
+    }
+    // Basic padding
+    if (styles.padding) {
+        applyPaddingFromString(frame, styles.padding);
+    }
+    // Basic alignment
+    const justifyMap = {
+        "flex-start": "MIN",
+        center: "CENTER",
+        "flex-end": "MAX",
+        "space-between": "SPACE_BETWEEN",
+    };
+    if (styles.justifyContent && justifyMap[styles.justifyContent]) {
+        frame.primaryAxisAlignItems = justifyMap[styles.justifyContent];
+    }
+    const alignMap = {
+        "flex-start": "MIN",
+        center: "CENTER",
+        "flex-end": "MAX",
+        stretch: "STRETCH",
+    };
+    if (styles.alignItems && alignMap[styles.alignItems]) {
+        frame.counterAxisAlignItems = alignMap[styles.alignItems];
+    }
+}
+/**
+ * Apply flex item properties to individual nodes within Auto Layout containers
+ */
+function applyFlexItemProperties(node, nodeData) {
+    const styles = nodeData.styles;
+    if (!styles)
+        return;
+    // Apply layoutGrow for flex-grow behavior
+    if ('layoutGrow' in node && styles.flexGrow) {
+        const flexGrow = parseFloat(styles.flexGrow);
+        if (flexGrow > 0) {
+            node.layoutGrow = flexGrow;
+            console.log(`Applied layoutGrow ${flexGrow} to ${nodeData.id}`);
+        }
+    }
+    // Apply layoutAlign for align-self behavior
+    if ('layoutAlign' in node && styles.alignSelf && styles.alignSelf !== 'auto') {
+        const alignSelf = mapAlignItemsToCounterAxis(styles.alignSelf);
+        node.layoutAlign = alignSelf;
+        console.log(`Applied alignSelf ${alignSelf} to ${nodeData.id}`);
+    }
+    // Note: flex order is handled through layer ordering in Figma
+    if (styles.order && parseInt(styles.order) !== 0) {
+        console.log(`Flex order ${styles.order} noted for ${nodeData.id} (handled via layer order)`);
+    }
 }

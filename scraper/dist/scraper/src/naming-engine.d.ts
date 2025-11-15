@@ -1,10 +1,3 @@
-/**
- * Developer-Friendly Node Naming Engine
- *
- * Generates semantic, hierarchical names optimized for developer workflows.
- * Supports camelCase naming conventions, text hints for interactive elements,
- * sibling differentiation, component pattern detection, and ARIA role mapping.
- */
 export interface NodeInfo {
     tagName: string;
     className?: string;

@@ -10,11 +10,64 @@ import { DrawableItem, TransformMatrix } from './index';
 export class TransformProcessor {
 
   /**
+   * Apply world transform matrix to Figma node from unified IR
+   */
+  applyWorldTransform(figmaNode: SceneNode, irNode: any): void {
+    if (!irNode.worldTransform || irNode.worldTransform.length < 6) {
+      return; // No transform to apply
+    }
+    
+    const [a, b, c, d, tx, ty] = irNode.worldTransform;
+    
+    // Check if this is just an identity matrix (no transform)
+    if (a === 1 && b === 0 && c === 0 && d === 1 && tx === 0 && ty === 0) {
+      return;
+    }
+    
+    // Extract rotation from matrix
+    const rotation = this.extractRotation(a, b, c, d);
+    if (Math.abs(rotation) > 0.001) { // Only apply if significant rotation
+      figmaNode.rotation = rotation;
+    }
+    
+    // Extract scale from matrix
+    const scale = this.extractScale(a, b, c, d);
+    if (Math.abs(scale.x - 1) > 0.001 || Math.abs(scale.y - 1) > 0.001) {
+      // Apply scale by adjusting node size (Figma approximation)
+      if ('resize' in figmaNode) {
+        const originalWidth = figmaNode.width;
+        const originalHeight = figmaNode.height;
+        try {
+          figmaNode.resize(originalWidth * scale.x, originalHeight * scale.y);
+        } catch (error) {
+          console.warn('Failed to apply scale transform:', error);
+        }
+      }
+    }
+    
+    // Extract skew - log warning as Figma doesn't support skew
+    const skew = this.extractSkew(a, b, c, d);
+    if (Math.abs(skew) > 0.001) {
+      console.warn('Skew transforms not supported in Figma, element may appear different than original');
+    }
+    
+    // Apply translation by adjusting node position
+    // Note: The worldTransform translation is already factored into world coordinates
+    // This is handled during node positioning, not here
+  }
+
+  /**
    * Compute world rectangle with all transforms applied
    */
   computeWorldRect(element: any): { x: number; y: number; width: number; height: number } {
     const baseRect = element.rect;
     
+    // Use precomputed worldTransform if available (unified IR)
+    if (element.worldTransform && element.worldTransform.length >= 6) {
+      return this.applyWorldTransformToRect(baseRect, element.worldTransform);
+    }
+    
+    // Fallback to legacy transform parsing
     if (!element.transform) {
       return baseRect;
     }
@@ -23,6 +76,46 @@ export class TransformProcessor {
     const transformedRect = this.applyTransformToRect(baseRect, element.transform);
     
     return transformedRect;
+  }
+
+  /**
+   * Apply world transform matrix to rectangle coordinates
+   */
+  private applyWorldTransformToRect(
+    rect: { x: number; y: number; width: number; height: number },
+    worldTransform: number[]
+  ): { x: number; y: number; width: number; height: number } {
+    if (worldTransform.length < 6) {
+      return rect;
+    }
+    
+    const [a, b, c, d, tx, ty] = worldTransform;
+    
+    // Transform all four corners of the rectangle
+    const corners = [
+      { x: rect.x, y: rect.y },
+      { x: rect.x + rect.width, y: rect.y },
+      { x: rect.x + rect.width, y: rect.y + rect.height },
+      { x: rect.x, y: rect.y + rect.height }
+    ];
+    
+    const transformedCorners = corners.map(corner => ({
+      x: a * corner.x + c * corner.y + tx,
+      y: b * corner.x + d * corner.y + ty
+    }));
+    
+    // Find bounding box of transformed corners
+    const minX = Math.min(...transformedCorners.map(c => c.x));
+    const maxX = Math.max(...transformedCorners.map(c => c.x));
+    const minY = Math.min(...transformedCorners.map(c => c.y));
+    const maxY = Math.max(...transformedCorners.map(c => c.y));
+    
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
   }
 
   /**
