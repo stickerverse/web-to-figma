@@ -238,7 +238,7 @@ wss.on('connection', (ws) => {
     }
   });
 
-ws.on('message', async (message) => {
+  ws.on('message', async (message) => {
   let keepAliveInterval: NodeJS.Timeout | null = null;
 
   const stopKeepAlive = () => {
