@@ -570,6 +570,7 @@
     let isImporting = false;
     let lastKeepAliveLog = 0;
     let cachedServerPort = null;
+    let pendingServerPortPromise = null;
 
     // Example link clicks
     exampleLinks.forEach(link => {
@@ -629,14 +630,24 @@
       terminalContent.innerHTML = '';
     }
 
-    function showPreview(url) {
+    function preparePreview() {
       previewSection.classList.add('visible');
       terminalSection.classList.add('visible');
       scanner.classList.add('active');
+      previewImage.style.display = 'none';
+      previewPlaceholder.style.display = 'flex';
+    }
 
+    function wait(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function capturePreview(url, serverPort) {
       setTimeout(async () => {
+        if (!isImporting) {
+          return;
+        }
         try {
-          const serverPort = await getServerPort();
           const screenshotUrl = `http://localhost:${serverPort}/screenshot?url=${encodeURIComponent(url)}`;
           const response = await fetch(screenshotUrl);
           const data = await response.json();
@@ -651,37 +662,94 @@
         } catch (error) {
           addTerminalLog(`⚠ Preview capture failed: ${error.message}`, 'warning');
         }
-      }, 1000);
+      }, 750);
     }
 
-    async function getServerPort() {
+    async function getServerPort(options = {}) {
       if (cachedServerPort !== null) {
         return cachedServerPort;
       }
-      cachedServerPort = await discoverServerPort();
-      return cachedServerPort;
+
+      if (pendingServerPortPromise) {
+        return pendingServerPortPromise;
+      }
+
+      pendingServerPortPromise = (async () => {
+        const port = await discoverServerPort(options);
+        cachedServerPort = port;
+        return port;
+      })();
+
+      try {
+        return await pendingServerPortPromise;
+      } finally {
+        pendingServerPortPromise = null;
+      }
     }
 
-    async function discoverServerPort() {
+    function createTimeoutSignal(timeoutMs) {
+      if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+        return {
+          signal: AbortSignal.timeout(timeoutMs),
+          cleanup: () => {}
+        };
+      }
+
+      if (typeof AbortController === 'undefined') {
+        return {
+          signal: undefined,
+          cleanup: () => {}
+        };
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      return {
+        signal: controller.signal,
+        cleanup: () => clearTimeout(timeoutId)
+      };
+    }
+
+    async function discoverServerPort({ logAttempts = false } = {}) {
       const possiblePorts = [3000, 3001, 3002, 3003, 3004];
+      const maxAttempts = 5;
+      const attemptDelayMs = 500;
+      let lastError = null;
 
-      for (const port of possiblePorts) {
-        try {
-          const response = await fetch(`http://localhost:${port}/health`, {
-            method: 'GET',
-            signal: AbortSignal.timeout(1000)
-          });
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        if (logAttempts) {
+          addTerminalLog(`🔍 Looking for scraper server (attempt ${attempt}/${maxAttempts})`, 'info');
+        }
 
-          if (response.ok) {
-            cachedServerPort = port;
-            return port;
+        for (const port of possiblePorts) {
+          const { signal, cleanup } = createTimeoutSignal(1000);
+
+          try {
+            const response = await fetch(`http://localhost:${port}/health`, {
+              method: 'GET',
+              signal
+            });
+
+            if (response?.ok) {
+              cachedServerPort = port;
+              return port;
+            }
+          } catch (error) {
+            lastError = error;
+            // Port not available, try next
+          } finally {
+            cleanup();
           }
-        } catch (e) {
-          // Port not available, try next
+        }
+
+        if (attempt < maxAttempts) {
+          await wait(attemptDelayMs);
         }
       }
 
-      throw new Error('No running server found on ports 3000-3004');
+      const reason = lastError?.message ? ` Last error: ${lastError.message}` : '';
+      throw new Error(`No running server found on ports 3000-3004 after multiple attempts.${reason}`);
     }
 
     // Import button
@@ -706,7 +774,7 @@
       updateProgress(0, 'Initializing...');
 
       clearTerminal();
-      showPreview(url);
+      preparePreview();
 
       addTerminalLog('🚀 Starting web-to-figma conversion', 'info');
       addTerminalLog(`📄 Target: ${url}`, 'info');
@@ -715,9 +783,13 @@
 
       let serverPort;
       try {
-        serverPort = await getServerPort();
+        serverPort = await getServerPort({ logAttempts: true });
+        if (!isImporting) {
+          return;
+        }
         showStatus(`Connected to server on port ${serverPort}`, 'success');
         addTerminalLog(`✓ Connected to server on port ${serverPort}`, 'success');
+        capturePreview(url, serverPort);
       } catch (error) {
         showStatus('Server not found. Please start the scraper server first.', 'error');
         addTerminalLog('✗ Server connection failed', 'error');
@@ -844,13 +916,17 @@
         ws.onerror = () => {
           showStatus('Connection failed', 'error');
           addTerminalLog('✗ WebSocket connection failed', 'error');
+          cachedServerPort = null;
           resetUI();
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
           if (isImporting) {
             showStatus('Connection closed', 'error');
             resetUI();
+          }
+          if (event && event.code !== 1000) {
+            cachedServerPort = null;
           }
           currentWebSocket = null;
         };
