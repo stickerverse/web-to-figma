@@ -1,3 +1,4 @@
+"use strict";
 /**
  * UNIFIED INTERMEDIATE REPRESENTATION (IR) - SINGLE CANONICAL SCHEMA
  *
@@ -12,12 +13,33 @@
  *
  * MIGRATED FROM: Legacy multi-phase IR (0.5-9) to unified schema
  */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.legacyMigrator = exports.InheritanceUtils = exports.CSSInheritanceResolver = exports.INHERITABLE_PROPERTIES = exports.LegacyIRMigrator = exports.GridUtils = exports.FlexboxUtils = void 0;
+exports.isTextNode = isTextNode;
+exports.isImageNode = isImageNode;
+exports.isSVGNode = isSVGNode;
+exports.isFrameNode = isFrameNode;
+exports.hasScreenshot = hasScreenshot;
+exports.hasValidation = hasValidation;
+exports.shouldUseFallback = shouldUseFallback;
+exports.isFlexContainer = isFlexContainer;
+exports.isFlexItem = isFlexItem;
+exports.usesFlexboxLayout = usesFlexboxLayout;
+exports.isFlexWrapEnabled = isFlexWrapEnabled;
+exports.hasExplicitFlexSizing = hasExplicitFlexSizing;
+exports.getFlexMainAxis = getFlexMainAxis;
+exports.getFlexCrossAxis = getFlexCrossAxis;
+exports.validateIRDocument = validateIRDocument;
+exports.validateIRNode = validateIRNode;
+exports.getNodeConfidence = getNodeConfidence;
+exports.shouldRenderAsScreenshot = shouldRenderAsScreenshot;
+exports.computeBoxModelBounds = computeBoxModelBounds;
 // ==================== FLEXBOX UTILITY FUNCTIONS ====================
 /**
  * Utility functions for working with flexbox layouts
  * These help convert between CSS values and internal representations
  */
-export var FlexboxUtils;
+var FlexboxUtils;
 (function (FlexboxUtils) {
     /**
      * Parse CSS flex shorthand value into individual components
@@ -183,9 +205,9 @@ export var FlexboxUtils;
         };
     }
     FlexboxUtils.createFlexItem = createFlexItem;
-})(FlexboxUtils || (FlexboxUtils = {}));
+})(FlexboxUtils || (exports.FlexboxUtils = FlexboxUtils = {}));
 // ==================== GRID UTILITY FUNCTIONS ====================
-export var GridUtils;
+var GridUtils;
 (function (GridUtils) {
     const JUSTIFY_CONTENT_VALUES = [
         "start",
@@ -272,64 +294,64 @@ export var GridUtils;
         return "auto";
     }
     GridUtils.normalizeAlignSelf = normalizeAlignSelf;
-})(GridUtils || (GridUtils = {}));
+})(GridUtils || (exports.GridUtils = GridUtils = {}));
 // ==================== TYPE GUARDS ====================
-export function isTextNode(node) {
+function isTextNode(node) {
     return node.type === "TEXT" && !!node.text;
 }
-export function isImageNode(node) {
+function isImageNode(node) {
     return node.type === "IMAGE" && !!node.imageRef;
 }
-export function isSVGNode(node) {
+function isSVGNode(node) {
     return node.type === "SVG" && !!node.svgRef;
 }
-export function isFrameNode(node) {
+function isFrameNode(node) {
     return node.type === "FRAME" && node.children.length > 0;
 }
-export function hasScreenshot(node) {
+function hasScreenshot(node) {
     return !!node.screenshot;
 }
-export function hasValidation(node) {
+function hasValidation(node) {
     return !!node.validation && node.validation.confidence >= 0;
 }
-export function shouldUseFallback(node) {
+function shouldUseFallback(node) {
     return node.validation?.useFallback || false;
 }
 // ==================== FLEXBOX TYPE GUARDS ====================
 /**
  * Type guard to check if a node has flex container properties
  */
-export function isFlexContainer(node) {
+function isFlexContainer(node) {
     return !!(node.layout.flex?.isFlexContainer);
 }
 /**
  * Type guard to check if a node has flex item properties
  */
-export function isFlexItem(node) {
+function isFlexItem(node) {
     return !!(node.layout.flexItem);
 }
 /**
  * Type guard to check if a node uses flexbox layout (either container or item)
  */
-export function usesFlexboxLayout(node) {
+function usesFlexboxLayout(node) {
     return isFlexContainer(node) || isFlexItem(node);
 }
 /**
  * Type guard to check if flex container has wrapping enabled
  */
-export function isFlexWrapEnabled(node) {
+function isFlexWrapEnabled(node) {
     return node.layout.flex?.wrap !== "nowrap";
 }
 /**
  * Type guard to check if flex item has explicit sizing
  */
-export function hasExplicitFlexSizing(node) {
+function hasExplicitFlexSizing(node) {
     return !!(node.layout.flexItem?.computed?.hasExplicitSizing);
 }
 /**
  * Get the effective flex direction (accounting for reverse)
  */
-export function getFlexMainAxis(node) {
+function getFlexMainAxis(node) {
     if (!isFlexContainer(node))
         return null;
     const direction = node.layout.flex?.direction || "row";
@@ -338,14 +360,14 @@ export function getFlexMainAxis(node) {
 /**
  * Get the flex cross axis (perpendicular to main axis)
  */
-export function getFlexCrossAxis(node) {
+function getFlexCrossAxis(node) {
     const mainAxis = getFlexMainAxis(node);
     if (!mainAxis)
         return null;
     return mainAxis === "horizontal" ? "vertical" : "horizontal";
 }
 // ==================== VALIDATION HELPERS ====================
-export function validateIRDocument(doc) {
+function validateIRDocument(doc) {
     const errors = [];
     const warnings = [];
     // Required document fields
@@ -371,7 +393,7 @@ export function validateIRDocument(doc) {
     }
     return { valid: errors.length === 0, errors, warnings };
 }
-export function validateIRNode(node) {
+function validateIRNode(node) {
     const errors = [];
     const warnings = [];
     // Required fields
@@ -400,15 +422,15 @@ export function validateIRNode(node) {
     return { valid: errors.length === 0, errors, warnings };
 }
 // ==================== UTILITY FUNCTIONS ====================
-export function getNodeConfidence(node) {
+function getNodeConfidence(node) {
     return node.validation?.confidence ?? 1.0;
 }
-export function shouldRenderAsScreenshot(node) {
+function shouldRenderAsScreenshot(node) {
     return node.validation?.useFallback || getNodeConfidence(node) < 0.9;
 }
 // ==================== LEGACY COMPATIBILITY HELPERS ====================
 // These help migrate from the old IR structure
-export class LegacyIRMigrator {
+class LegacyIRMigrator {
     // Convert old IRNode structure to new unified structure
     migrateFromLegacyIRNode(legacyNode) {
         const newNode = {
@@ -994,12 +1016,13 @@ export class LegacyIRMigrator {
         };
     }
 }
+exports.LegacyIRMigrator = LegacyIRMigrator;
 // ==================== BOX MODEL UTILITIES ====================
 /**
  * Compute accurate bounds for all box model layers
  * Handles content-box vs border-box sizing correctly
  */
-export function computeBoxModelBounds(rect, layout) {
+function computeBoxModelBounds(rect, layout) {
     const { boxModel } = layout;
     const { margin, padding, border, boxSizing } = boxModel;
     let contentRect;
@@ -1056,7 +1079,7 @@ export function computeBoxModelBounds(rect, layout) {
  * CSS properties that naturally inherit from parent to child
  * Based on W3C CSS specification
  */
-export const INHERITABLE_PROPERTIES = new Set([
+exports.INHERITABLE_PROPERTIES = new Set([
     // Typography
     "color",
     "font-family",
@@ -1112,7 +1135,7 @@ export const INHERITABLE_PROPERTIES = new Set([
  * CSS Inheritance Resolution Engine
  * Builds and resolves inheritance chains for CSS properties
  */
-export class CSSInheritanceResolver {
+class CSSInheritanceResolver {
     nodeMap = new Map();
     inheritanceMap = new Map();
     constructor(nodes) {
@@ -1176,7 +1199,7 @@ export class CSSInheritanceResolver {
         const nodeStyles = this.normalizeStylesForInheritance(rawStyles);
         // Process inherited properties from parent
         if (parentChain) {
-            for (const property of INHERITABLE_PROPERTIES) {
+            for (const property of exports.INHERITABLE_PROPERTIES) {
                 const parentValue = parentChain.computed[property];
                 if (parentValue && !nodeStyles[property]) {
                     // Property inherits from parent
@@ -1221,7 +1244,7 @@ export class CSSInheritanceResolver {
                             value: parentValue,
                             sourceId: node.parent,
                             distance: 1,
-                            naturallyInherits: INHERITABLE_PROPERTIES.has(property),
+                            naturallyInherits: exports.INHERITABLE_PROPERTIES.has(property),
                             sourceSelector: parentChain.explicit[property]?.selector,
                             specificity: parentChain.explicit[property]?.specificity,
                         };
@@ -1416,10 +1439,11 @@ export class CSSInheritanceResolver {
         return { grow, shrink, basis };
     }
 }
+exports.CSSInheritanceResolver = CSSInheritanceResolver;
 /**
  * Utility functions for working with inheritance chains
  */
-export var InheritanceUtils;
+var InheritanceUtils;
 (function (InheritanceUtils) {
     /**
      * Get the resolved value for a property, following the inheritance chain
@@ -1470,7 +1494,7 @@ export var InheritanceUtils;
      * Check if a property naturally inherits in CSS
      */
     function naturallyInherits(property) {
-        return INHERITABLE_PROPERTIES.has(property);
+        return exports.INHERITABLE_PROPERTIES.has(property);
     }
     InheritanceUtils.naturallyInherits = naturallyInherits;
     /**
@@ -1514,12 +1538,12 @@ export var InheritanceUtils;
         };
     }
     InheritanceUtils.createDebugSummary = createDebugSummary;
-})(InheritanceUtils || (InheritanceUtils = {}));
+})(InheritanceUtils || (exports.InheritanceUtils = InheritanceUtils = {}));
 // ==================== EXPORT COMPATIBILITY LAYER ====================
 // Export migrator instance for use
-export const legacyMigrator = new LegacyIRMigrator();
+exports.legacyMigrator = new LegacyIRMigrator();
 // Export default for legacy imports
-export default {
+exports.default = {
     // Core type guards
     isTextNode,
     isImageNode,
@@ -1546,8 +1570,8 @@ export default {
     // Inheritance utilities
     CSSInheritanceResolver,
     InheritanceUtils,
-    INHERITABLE_PROPERTIES,
+    INHERITABLE_PROPERTIES: exports.INHERITABLE_PROPERTIES,
     // Legacy migration
-    legacyMigrator,
+    legacyMigrator: exports.legacyMigrator,
 };
 //# sourceMappingURL=ir.js.map
