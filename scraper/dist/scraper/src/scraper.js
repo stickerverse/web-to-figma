@@ -21,7 +21,7 @@ import * as fs from "fs";
 import * as path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
-import { legacyMigrator, CSSInheritanceResolver, GridUtils } from "../../ir.js";
+import { legacyMigrator, CSSInheritanceResolver, GridUtils } from "../../ir.cjs";
 import { compileIR } from "./ir-compiler.js";
 import { parseEffectsToIR } from "./effects-parser.js";
 // ==================== CONSTANTS ====================
