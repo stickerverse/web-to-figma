@@ -8552,7 +8552,8 @@ export async function extractComplete(
           nodeType = "CANVAS";
         } else if (el.tagName === "VIDEO") {
           nodeType = "VIDEO";
-        } else if (hasTypography && extractedText) {
+        } else if (hasTypography && extractedText && el.children.length === 0) {
+          // Only leaf nodes with text should be TEXT nodes
           nodeType = "TEXT";
         } else if (el.children.length > 0) {
           nodeType = "FRAME";

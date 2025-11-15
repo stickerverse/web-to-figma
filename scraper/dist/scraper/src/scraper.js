@@ -21,7 +21,7 @@ import * as fs from "fs";
 import * as path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
-import { legacyMigrator, CSSInheritanceResolver, GridUtils } from "../../ir.cjs";
+import { legacyMigrator, CSSInheritanceResolver, GridUtils } from "../../ir.js";
 import { compileIR } from "./ir-compiler.js";
 import { parseEffectsToIR } from "./effects-parser.js";
 // ==================== CONSTANTS ====================
@@ -6750,7 +6750,8 @@ export async function extractComplete(url, options = {}) {
                         else if (el.tagName === "VIDEO") {
                             nodeType = "VIDEO";
                         }
-                        else if (hasTypography && extractedText) {
+                        else if (hasTypography && extractedText && el.children.length === 0) {
+                            // Only leaf nodes with text should be TEXT nodes
                             nodeType = "TEXT";
                         }
                         else if (el.children.length > 0) {
